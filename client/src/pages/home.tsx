@@ -1,17 +1,16 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { Plus, Map, Calendar as CalendarIcon, List, FileSpreadsheet, Database, Settings } from "lucide-react";
+import { Plus, Map, Calendar as CalendarIcon, List, Settings, User } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CaseFormDialog } from "@/components/case-form-dialog";
 import { CasesTable } from "@/components/cases-table";
 import { CalendarView } from "@/components/calendar-view";
 import { CalendarFilters } from "@/components/calendar-filters";
-import type { SurveyCase } from "@shared/schema";
+import type { SurveyCase, Surveyor } from "@shared/schema";
 
 export default function Home() {
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -35,6 +34,10 @@ export default function Home() {
     },
   });
 
+  const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
+    queryKey: ["/api/surveyors"],
+  });
+
   const filteredCases = useMemo(() => {
     return cases.filter((c) => {
       const matchesSurveyor = !surveyorFilter || surveyorFilter === "all" || c.surveyor === surveyorFilter;
@@ -43,13 +46,23 @@ export default function Home() {
     });
   }, [cases, surveyorFilter, caseTypeFilter]);
 
-  const stats = useMemo(() => {
-    const total = cases.length;
-    const success = cases.filter(c => c.coordinateStatus === "success").length;
-    const pending = cases.filter(c => c.coordinateStatus === "pending").length;
-    const failed = cases.filter(c => c.coordinateStatus === "failed").length;
-    return { total, success, pending, failed };
+  const surveyorCaseCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    cases.forEach((c) => {
+      if (c.surveyor) {
+        counts[c.surveyor] = (counts[c.surveyor] || 0) + 1;
+      }
+    });
+    return counts;
   }, [cases]);
+
+  const handleSurveyorCardClick = (surveyorName: string) => {
+    if (surveyorFilter === surveyorName) {
+      setSurveyorFilter("");
+    } else {
+      setSurveyorFilter(surveyorName);
+    }
+  };
 
   const handleEdit = (surveyCase: SurveyCase) => {
     setEditCase(surveyCase);
@@ -103,47 +116,33 @@ export default function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">總案件數</CardTitle>
-              <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" data-testid="stat-total">{stats.total}</div>
-              <p className="text-xs text-muted-foreground">件</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">座標已取得</CardTitle>
-              <Database className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600" data-testid="stat-success">{stats.success}</div>
-              <p className="text-xs text-muted-foreground">件成功</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">待查詢</CardTitle>
-              <Database className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" data-testid="stat-pending">{stats.pending}</div>
-              <p className="text-xs text-muted-foreground">件待處理</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">查詢失敗</CardTitle>
-              <Database className="h-4 w-4 text-destructive" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive" data-testid="stat-failed">{stats.failed}</div>
-              <p className="text-xs text-muted-foreground">件需手動處理</p>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-6">
+          {surveyorsList.map((surveyor) => {
+            const caseCount = surveyorCaseCounts[surveyor.name] || 0;
+            const isSelected = surveyorFilter === surveyor.name;
+            return (
+              <Card
+                key={surveyor.id}
+                className={`cursor-pointer transition-all hover-elevate ${isSelected ? "ring-2 ring-primary" : ""}`}
+                onClick={() => handleSurveyorCardClick(surveyor.name)}
+                data-testid={`card-surveyor-${surveyor.id}`}
+              >
+                <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium truncate">{surveyor.name}</CardTitle>
+                  <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold" data-testid={`stat-cases-${surveyor.id}`}>{caseCount}</div>
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    <p className="text-xs text-muted-foreground">件案件</p>
+                    <p className="text-xs text-muted-foreground" data-testid={`stat-points-${surveyor.id}`}>
+                      積分: {surveyor.points}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         <Card className="mb-6">
