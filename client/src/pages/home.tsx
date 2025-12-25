@@ -11,7 +11,21 @@ import { CaseFormDialog } from "@/components/case-form-dialog";
 import { CasesTable } from "@/components/cases-table";
 import { CalendarView } from "@/components/calendar-view";
 import { CalendarFilters } from "@/components/calendar-filters";
+import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
+
+const COLOR_PALETTE = [
+  { bg: "bg-blue-100 dark:bg-blue-900", border: "border-blue-300 dark:border-blue-700" },
+  { bg: "bg-green-100 dark:bg-green-900", border: "border-green-300 dark:border-green-700" },
+  { bg: "bg-purple-100 dark:bg-purple-900", border: "border-purple-300 dark:border-purple-700" },
+  { bg: "bg-orange-100 dark:bg-orange-900", border: "border-orange-300 dark:border-orange-700" },
+  { bg: "bg-pink-100 dark:bg-pink-900", border: "border-pink-300 dark:border-pink-700" },
+  { bg: "bg-teal-100 dark:bg-teal-900", border: "border-teal-300 dark:border-teal-700" },
+  { bg: "bg-amber-100 dark:bg-amber-900", border: "border-amber-300 dark:border-amber-700" },
+  { bg: "bg-indigo-100 dark:bg-indigo-900", border: "border-indigo-300 dark:border-indigo-700" },
+  { bg: "bg-rose-100 dark:bg-rose-900", border: "border-rose-300 dark:border-rose-700" },
+  { bg: "bg-cyan-100 dark:bg-cyan-900", border: "border-cyan-300 dark:border-cyan-700" },
+];
 
 export default function Home() {
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -144,17 +158,23 @@ export default function Home() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-6">
-          {surveyorsList.map((surveyor) => {
+          {surveyorsList.map((surveyor, index) => {
             const caseCount = surveyorCaseCounts[surveyor.name] || 0;
             const isSelected = surveyorFilter === surveyor.name;
             const isNextAssignee = surveyor.id === nextAssigneeId;
             const isEligible = surveyor.businessAttribute === "複丈組";
             const isPointsMode = settings?.assignmentMode === "points";
+            const colorStyle = COLOR_PALETTE[index % COLOR_PALETTE.length];
             
             return (
               <Card
                 key={surveyor.id}
-                className={`cursor-pointer transition-all hover-elevate ${isSelected ? "ring-2 ring-primary" : ""}`}
+                className={cn(
+                  "cursor-pointer transition-all hover-elevate border-2",
+                  colorStyle.bg,
+                  colorStyle.border,
+                  isSelected && "ring-2 ring-primary"
+                )}
                 onClick={() => handleSurveyorCardClick(surveyor.name)}
                 data-testid={`card-surveyor-${surveyor.id}`}
               >
