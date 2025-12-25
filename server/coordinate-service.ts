@@ -168,23 +168,27 @@ async function lookupNLSC(landParcel: string): Promise<CoordinateResult | null> 
       return null;
     }
     
-    // The API returns an array, the coordinate info is in the second element
-    if (Array.isArray(data) && data.length >= 2 && data[1] && data[1].cx && data[1].cy) {
-      const coords = data[1];
-      console.log(`NLSC API returned coordinates: cx=${coords.cx}, cy=${coords.cy}`);
-      return {
-        longitude: coords.cx,
-        latitude: coords.cy,
-        source: "NLSC",
-      };
+    // The API returns an array - check first element for coordinates
+    if (Array.isArray(data) && data.length >= 1 && data[0]) {
+      const firstItem = data[0];
+      
+      // Check if it contains coordinates (cx, cy)
+      if (firstItem.cx !== undefined && firstItem.cy !== undefined) {
+        console.log(`NLSC API returned coordinates: cx=${firstItem.cx}, cy=${firstItem.cy}`);
+        return {
+          longitude: firstItem.cx,
+          latitude: firstItem.cy,
+          source: "NLSC",
+        };
+      }
+      
+      // Check for error message
+      if (firstItem.msg) {
+        console.log(`NLSC API error: ${firstItem.msg}`);
+      }
     }
 
-    // Check for error message
-    if (Array.isArray(data) && data[0] && data[0].msg) {
-      console.log(`NLSC API error: ${data[0].msg}`);
-    }
-
-    console.log(`NLSC API response did not contain coordinates`);
+    console.log(`NLSC API response did not contain valid coordinates`);
     return null;
   } catch (error) {
     console.error(`NLSC API error:`, error);
