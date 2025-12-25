@@ -42,12 +42,12 @@ async function lookupNLSC(landParcel: string): Promise<CoordinateResult | null> 
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
 
-  // Simulate ~70% success rate with random coordinates in Miaoli County area
-  // Miaoli County approximate bounds: 120.5-121.2 E, 24.3-24.7 N
+  // Simulate ~70% success rate with random coordinates in Miaoli County LAND area
+  // Miaoli County land bounds (avoiding ocean): 120.75-121.15 E, 24.35-24.65 N
   if (Math.random() > 0.3) {
     return {
-      longitude: 120.5 + Math.random() * 0.7,
-      latitude: 24.3 + Math.random() * 0.4,
+      longitude: 120.75 + Math.random() * 0.4,
+      latitude: 24.35 + Math.random() * 0.3,
       source: "NLSC",
     };
   }
@@ -63,11 +63,12 @@ async function lookupMiaoliGIS(landParcel: string): Promise<CoordinateResult | n
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
 
-  // Simulate ~60% success rate with random coordinates in Miaoli County
+  // Simulate ~60% success rate with random coordinates in Miaoli County LAND area
+  // Miaoli County land bounds (avoiding ocean): 120.75-121.15 E, 24.35-24.65 N
   if (Math.random() > 0.4) {
     return {
-      longitude: 120.5 + Math.random() * 0.7,
-      latitude: 24.3 + Math.random() * 0.4,
+      longitude: 120.75 + Math.random() * 0.4,
+      latitude: 24.35 + Math.random() * 0.3,
       source: "Miaoli GIS",
     };
   }
