@@ -1,11 +1,11 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { 
   format, 
   startOfMonth, 
   endOfMonth, 
   eachDayOfInterval, 
   isSameMonth, 
-  isSameDay,
   startOfWeek,
   endOfWeek,
   isToday,
@@ -15,10 +15,8 @@ import {
 import { zhTW } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { SurveyCase } from "@shared/schema";
+import type { SurveyCase, Surveyor } from "@shared/schema";
 
 interface CalendarViewProps {
   cases: SurveyCase[];
@@ -35,13 +33,18 @@ const MAX_CASES_PER_DAY = 10;
 
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 
-const surveyorColors: Record<string, string> = {
-  "王小明": "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-800",
-  "李大華": "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 border-green-200 dark:border-green-800",
-  "張文雄": "bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 border-purple-200 dark:border-purple-800",
-  "陳志偉": "bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 border-orange-200 dark:border-orange-800",
-  "林美玲": "bg-pink-100 dark:bg-pink-900 text-pink-800 dark:text-pink-200 border-pink-200 dark:border-pink-800",
-};
+const COLOR_PALETTE = [
+  "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-800",
+  "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 border-green-200 dark:border-green-800",
+  "bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 border-purple-200 dark:border-purple-800",
+  "bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 border-orange-200 dark:border-orange-800",
+  "bg-pink-100 dark:bg-pink-900 text-pink-800 dark:text-pink-200 border-pink-200 dark:border-pink-800",
+  "bg-teal-100 dark:bg-teal-900 text-teal-800 dark:text-teal-200 border-teal-200 dark:border-teal-800",
+  "bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-800",
+  "bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 border-indigo-200 dark:border-indigo-800",
+  "bg-rose-100 dark:bg-rose-900 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800",
+  "bg-cyan-100 dark:bg-cyan-900 text-cyan-800 dark:text-cyan-200 border-cyan-200 dark:border-cyan-800",
+];
 
 export function CalendarView({ 
   cases, 
@@ -53,6 +56,18 @@ export function CalendarView({
   caseTypeFilter,
   showVacantOnly
 }: CalendarViewProps) {
+  const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
+    queryKey: ["/api/surveyors"],
+  });
+
+  const surveyorColors = useMemo(() => {
+    const colors: Record<string, string> = {};
+    surveyorsList.forEach((surveyor, index) => {
+      colors[surveyor.name] = COLOR_PALETTE[index % COLOR_PALETTE.length];
+    });
+    return colors;
+  }, [surveyorsList]);
+
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
