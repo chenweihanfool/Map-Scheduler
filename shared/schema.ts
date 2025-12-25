@@ -3,10 +3,26 @@ import { pgTable, text, varchar, timestamp, doublePrecision } from "drizzle-orm/
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Case type options (案件類型)
+export const CASE_TYPES = [
+  "鑑界",
+  "再鑑界", 
+  "法院",
+  "建物",
+  "分割",
+  "合併",
+  "新登錄",
+  "勘查",
+  "其他",
+] as const;
+
+export type CaseType = typeof CASE_TYPES[number];
+
 // Survey Case table for scheduling land survey appointments
 export const surveyCases = pgTable("survey_cases", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseNumber: text("case_number").notNull(), // 案號
+  caseType: text("case_type").notNull().default("鑑界"), // 案件類型
   landParcel: text("land_parcel").notNull(), // 地段地號
   surveyor: text("surveyor").notNull(), // 測量員
   surveyDate: text("survey_date").notNull(), // 日期 (YYYY-MM-DD format)

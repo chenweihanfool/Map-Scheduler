@@ -168,13 +168,14 @@ export function CasesTable({ cases, isLoading, onEdit }: CasesTableProps) {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead className="font-semibold w-[120px]">案號</TableHead>
-              <TableHead className="font-semibold min-w-[200px]">地段地號</TableHead>
-              <TableHead className="font-semibold w-[120px]">測量員</TableHead>
-              <TableHead className="font-semibold w-[120px]">日期</TableHead>
-              <TableHead className="font-semibold w-[100px]">排件時間</TableHead>
-              <TableHead className="font-semibold w-[120px]">座標狀態</TableHead>
-              <TableHead className="font-semibold w-[120px] text-right">操作</TableHead>
+              <TableHead className="font-semibold w-[100px]">案號</TableHead>
+              <TableHead className="font-semibold w-[80px]">類型</TableHead>
+              <TableHead className="font-semibold min-w-[180px]">地段地號</TableHead>
+              <TableHead className="font-semibold w-[100px]">測量員</TableHead>
+              <TableHead className="font-semibold w-[100px]">日期</TableHead>
+              <TableHead className="font-semibold w-[80px]">時間</TableHead>
+              <TableHead className="font-semibold w-[100px]">座標狀態</TableHead>
+              <TableHead className="font-semibold w-[100px] text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -186,6 +187,11 @@ export function CasesTable({ cases, isLoading, onEdit }: CasesTableProps) {
               >
                 <TableCell className="font-medium" data-testid={`text-case-number-${surveyCase.id}`}>
                   {surveyCase.caseNumber}
+                </TableCell>
+                <TableCell data-testid={`text-case-type-${surveyCase.id}`}>
+                  <Badge variant="outline" className="text-xs">
+                    {surveyCase.caseType}
+                  </Badge>
                 </TableCell>
                 <TableCell data-testid={`text-land-parcel-${surveyCase.id}`}>
                   {surveyCase.landParcel}

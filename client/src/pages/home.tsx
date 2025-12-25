@@ -1,27 +1,31 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, FileSpreadsheet, Map, Database } from "lucide-react";
 import { format } from "date-fns";
+import { Plus, Map, Calendar as CalendarIcon, List, FileSpreadsheet, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CaseFormDialog } from "@/components/case-form-dialog";
 import { CasesTable } from "@/components/cases-table";
-import { SearchFilters } from "@/components/search-filters";
+import { CalendarView } from "@/components/calendar-view";
+import { CalendarFilters } from "@/components/calendar-filters";
 import type { SurveyCase } from "@shared/schema";
 
 export default function Home() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editCase, setEditCase] = useState<SurveyCase | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [activeView, setActiveView] = useState<"calendar" | "list">("calendar");
+  
   const [surveyorFilter, setSurveyorFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState<Date | undefined>();
-  const [statusFilter, setStatusFilter] = useState("");
+  const [caseTypeFilter, setCaseTypeFilter] = useState("");
+  const [showVacantOnly, setShowVacantOnly] = useState(false);
 
   const { data: cases = [], isLoading } = useQuery<SurveyCase[]>({
     queryKey: ["/api/cases"],
     refetchInterval: (query) => {
-      // Poll every 2 seconds if there are cases with pending or processing status
       const data = query.state.data;
       if (data && data.some(c => c.coordinateStatus === "pending" || c.coordinateStatus === "processing")) {
         return 2000;
@@ -32,28 +36,11 @@ export default function Home() {
 
   const filteredCases = useMemo(() => {
     return cases.filter((c) => {
-      const matchesSearch = 
-        !searchQuery ||
-        c.caseNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.landParcel.toLowerCase().includes(searchQuery.toLowerCase());
-
-      const matchesSurveyor = 
-        !surveyorFilter || 
-        surveyorFilter === "all" || 
-        c.surveyor === surveyorFilter;
-
-      const matchesDate = 
-        !dateFilter || 
-        c.surveyDate === format(dateFilter, "yyyy-MM-dd");
-
-      const matchesStatus = 
-        !statusFilter || 
-        statusFilter === "all" || 
-        c.coordinateStatus === statusFilter;
-
-      return matchesSearch && matchesSurveyor && matchesDate && matchesStatus;
+      const matchesSurveyor = !surveyorFilter || surveyorFilter === "all" || c.surveyor === surveyorFilter;
+      const matchesCaseType = !caseTypeFilter || caseTypeFilter === "all" || c.caseType === caseTypeFilter;
+      return matchesSurveyor && matchesCaseType;
     });
-  }, [cases, searchQuery, surveyorFilter, dateFilter, statusFilter]);
+  }, [cases, surveyorFilter, caseTypeFilter]);
 
   const stats = useMemo(() => {
     const total = cases.length;
@@ -65,6 +52,13 @@ export default function Home() {
 
   const handleEdit = (surveyCase: SurveyCase) => {
     setEditCase(surveyCase);
+    setSelectedDate(undefined);
+    setIsFormOpen(true);
+  };
+
+  const handleDateClick = (date: Date) => {
+    setEditCase(null);
+    setSelectedDate(date);
     setIsFormOpen(true);
   };
 
@@ -72,14 +66,14 @@ export default function Home() {
     setIsFormOpen(open);
     if (!open) {
       setEditCase(null);
+      setSelectedDate(undefined);
     }
   };
 
   const clearFilters = () => {
-    setSearchQuery("");
     setSurveyorFilter("");
-    setDateFilter(undefined);
-    setStatusFilter("");
+    setCaseTypeFilter("");
+    setShowVacantOnly(false);
   };
 
   return (
@@ -92,7 +86,7 @@ export default function Home() {
               <h1 className="text-xl font-semibold">測量案件排程系統</h1>
             </div>
             <div className="flex items-center gap-2">
-              <Button onClick={() => setIsFormOpen(true)} data-testid="button-add-case">
+              <Button onClick={() => { setEditCase(null); setSelectedDate(undefined); setIsFormOpen(true); }} data-testid="button-add-case">
                 <Plus className="h-4 w-4 mr-2" />
                 新增案件
               </Button>
@@ -147,42 +141,59 @@ export default function Home() {
         </div>
 
         <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-lg">篩選條件</CardTitle>
-            <CardDescription>搜尋或篩選測量案件</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SearchFilters
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              surveyorFilter={surveyorFilter}
-              onSurveyorFilterChange={setSurveyorFilter}
-              dateFilter={dateFilter}
-              onDateFilterChange={setDateFilter}
-              statusFilter={statusFilter}
-              onStatusFilterChange={setStatusFilter}
-              onClearFilters={clearFilters}
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
-                <CardTitle className="text-lg">測量排程表</CardTitle>
+                <CardTitle className="text-lg">測量排程</CardTitle>
                 <CardDescription>
                   共 {filteredCases.length} 筆案件{filteredCases.length !== cases.length && ` (已篩選，總共 ${cases.length} 筆)`}
                 </CardDescription>
               </div>
+              <Tabs value={activeView} onValueChange={(v) => setActiveView(v as "calendar" | "list")}>
+                <TabsList>
+                  <TabsTrigger value="calendar" data-testid="tab-calendar">
+                    <CalendarIcon className="h-4 w-4 mr-2" />
+                    月曆
+                  </TabsTrigger>
+                  <TabsTrigger value="list" data-testid="tab-list">
+                    <List className="h-4 w-4 mr-2" />
+                    列表
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
           </CardHeader>
           <CardContent>
-            <CasesTable 
-              cases={filteredCases} 
-              isLoading={isLoading} 
-              onEdit={handleEdit}
-            />
+            <div className="mb-4">
+              <CalendarFilters
+                surveyorFilter={surveyorFilter}
+                onSurveyorFilterChange={setSurveyorFilter}
+                caseTypeFilter={caseTypeFilter}
+                onCaseTypeFilterChange={setCaseTypeFilter}
+                showVacantOnly={showVacantOnly}
+                onShowVacantOnlyChange={setShowVacantOnly}
+                onClearFilters={clearFilters}
+              />
+            </div>
+            
+            {activeView === "calendar" ? (
+              <CalendarView
+                cases={filteredCases}
+                currentMonth={currentMonth}
+                onMonthChange={setCurrentMonth}
+                onDateClick={handleDateClick}
+                onCaseClick={handleEdit}
+                surveyorFilter={surveyorFilter}
+                caseTypeFilter={caseTypeFilter}
+                showVacantOnly={showVacantOnly}
+              />
+            ) : (
+              <CasesTable 
+                cases={filteredCases} 
+                isLoading={isLoading} 
+                onEdit={handleEdit}
+              />
+            )}
           </CardContent>
         </Card>
 
@@ -196,6 +207,7 @@ export default function Home() {
         open={isFormOpen}
         onOpenChange={handleCloseForm}
         editCase={editCase}
+        defaultDate={selectedDate}
       />
     </div>
   );

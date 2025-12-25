@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -39,10 +40,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import type { SurveyCase } from "@shared/schema";
+import { CASE_TYPES, type SurveyCase } from "@shared/schema";
 
 const formSchema = z.object({
   caseNumber: z.string().min(1, "案號為必填"),
+  caseType: z.string().min(1, "案件類型為必填"),
   landParcel: z.string().min(1, "地段地號為必填"),
   surveyor: z.string().min(1, "測量員為必填"),
   surveyDate: z.string().min(1, "日期為必填"),
@@ -58,6 +60,7 @@ interface CaseFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   editCase?: SurveyCase | null;
+  defaultDate?: Date;
 }
 
 const timeSlots = [
@@ -70,23 +73,46 @@ const surveyors = [
   "王小明", "李大華", "張文雄", "陳志偉", "林美玲"
 ];
 
-export function CaseFormDialog({ open, onOpenChange, editCase }: CaseFormDialogProps) {
+export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: CaseFormDialogProps) {
   const { toast } = useToast();
   const isEditing = !!editCase;
+
+  const getDefaultSurveyDate = () => {
+    if (editCase?.surveyDate) return editCase.surveyDate;
+    if (defaultDate) return format(defaultDate, "yyyy-MM-dd");
+    return "";
+  };
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       caseNumber: editCase?.caseNumber ?? "",
+      caseType: editCase?.caseType ?? "鑑界",
       landParcel: editCase?.landParcel ?? "",
       surveyor: editCase?.surveyor ?? "",
-      surveyDate: editCase?.surveyDate ?? "",
+      surveyDate: getDefaultSurveyDate(),
       scheduledTime: editCase?.scheduledTime ?? "",
       notes: editCase?.notes ?? "",
       longitude: editCase?.longitude ?? null,
       latitude: editCase?.latitude ?? null,
     },
   });
+
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        caseNumber: editCase?.caseNumber ?? "",
+        caseType: editCase?.caseType ?? "鑑界",
+        landParcel: editCase?.landParcel ?? "",
+        surveyor: editCase?.surveyor ?? "",
+        surveyDate: getDefaultSurveyDate(),
+        scheduledTime: editCase?.scheduledTime ?? "",
+        notes: editCase?.notes ?? "",
+        longitude: editCase?.longitude ?? null,
+        latitude: editCase?.latitude ?? null,
+      });
+    }
+  }, [open, editCase, defaultDate]);
 
   const createMutation = useMutation({
     mutationFn: async (data: FormValues) => {
@@ -183,22 +209,45 @@ export function CaseFormDialog({ open, onOpenChange, editCase }: CaseFormDialogP
 
               <FormField
                 control={form.control}
-                name="landParcel"
+                name="caseType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>地段地號 <span className="text-destructive">*</span></FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="例: 苗栗市中正段123地號" 
-                        {...field}
-                        data-testid="input-land-parcel"
-                      />
-                    </FormControl>
+                    <FormLabel>案件類型 <span className="text-destructive">*</span></FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-case-type">
+                          <SelectValue placeholder="選擇類型" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {CASE_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>{type}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="landParcel"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>地段地號 <span className="text-destructive">*</span></FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="例: 苗栗市中正段123地號" 
+                      {...field}
+                      data-testid="input-land-parcel"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
