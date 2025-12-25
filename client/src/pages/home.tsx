@@ -20,6 +20,14 @@ export default function Home() {
 
   const { data: cases = [], isLoading } = useQuery<SurveyCase[]>({
     queryKey: ["/api/cases"],
+    refetchInterval: (query) => {
+      // Poll every 2 seconds if there are cases with pending or processing status
+      const data = query.state.data;
+      if (data && data.some(c => c.coordinateStatus === "pending" || c.coordinateStatus === "processing")) {
+        return 2000;
+      }
+      return false;
+    },
   });
 
   const filteredCases = useMemo(() => {

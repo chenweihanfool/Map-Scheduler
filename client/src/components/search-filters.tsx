@@ -15,7 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface SearchFiltersProps {
@@ -124,17 +123,17 @@ export function SearchFilters({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Badge 
+        <Button 
           variant="outline" 
-          className="cursor-pointer toggle-elevate hover-elevate"
+          size="sm"
           onClick={() => onDateFilterChange(new Date())}
           data-testid="badge-filter-today"
         >
           今日
-        </Badge>
-        <Badge 
+        </Button>
+        <Button 
           variant="outline" 
-          className="cursor-pointer toggle-elevate hover-elevate"
+          size="sm"
           onClick={() => {
             const weekStart = new Date();
             weekStart.setDate(weekStart.getDate() - weekStart.getDay());
@@ -143,23 +142,23 @@ export function SearchFilters({
           data-testid="badge-filter-this-week"
         >
           本週
-        </Badge>
-        <Badge 
+        </Button>
+        <Button 
           variant="outline" 
-          className="cursor-pointer toggle-elevate hover-elevate"
+          size="sm"
           onClick={() => onStatusFilterChange("pending")}
           data-testid="badge-filter-pending"
         >
           待查詢座標
-        </Badge>
-        <Badge 
+        </Button>
+        <Button 
           variant="outline" 
-          className="cursor-pointer toggle-elevate hover-elevate"
+          size="sm"
           onClick={() => onStatusFilterChange("failed")}
           data-testid="badge-filter-failed"
         >
           查詢失敗
-        </Badge>
+        </Button>
       </div>
     </div>
   );

@@ -56,10 +56,12 @@ function CoordinateStatusBadge({ status, longitude, latitude }: {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="default" className="bg-green-600 hover:bg-green-700 gap-1">
-            <CheckCircle2 className="h-3 w-3" />
-            成功
-          </Badge>
+          <span className="inline-flex">
+            <Badge variant="default" className="bg-green-600 gap-1">
+              <CheckCircle2 className="h-3 w-3" />
+              成功
+            </Badge>
+          </span>
         </TooltipTrigger>
         <TooltipContent>
           <p>經度: {longitude.toFixed(6)}</p>
