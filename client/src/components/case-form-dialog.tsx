@@ -1,10 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2, MapPin } from "lucide-react";
+import { CalendarIcon, Loader2, MapPin, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,7 +40,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import { CASE_TYPES, type SurveyCase } from "@shared/schema";
+import { CASE_TYPES, type SurveyCase, type Surveyor, type SystemSettings } from "@shared/schema";
+import { Badge } from "@/components/ui/badge";
 
 const formSchema = z.object({
   caseNumber: z.string().min(1, "案號為必填"),
@@ -69,13 +70,20 @@ const timeSlots = [
   "15:00", "15:30", "16:00", "16:30", "17:00"
 ];
 
-const surveyors = [
-  "王小明", "李大華", "張文雄", "陳志偉", "林美玲"
-];
-
 export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: CaseFormDialogProps) {
   const { toast } = useToast();
   const isEditing = !!editCase;
+  const [suggestedSurveyor, setSuggestedSurveyor] = useState<Surveyor | null>(null);
+  const [assignmentMode, setAssignmentMode] = useState<string>("sequential");
+
+  const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
+    queryKey: ["/api/surveyors"],
+  });
+
+  const { data: suggestedData } = useQuery<{ surveyor: Surveyor | null; mode: string }>({
+    queryKey: ["/api/surveyors/next/suggested"],
+    enabled: open && !isEditing,
+  });
 
   const getDefaultSurveyDate = () => {
     if (editCase?.surveyDate) return editCase.surveyDate;
@@ -99,12 +107,23 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
   });
 
   useEffect(() => {
+    if (suggestedData) {
+      setSuggestedSurveyor(suggestedData.surveyor);
+      setAssignmentMode(suggestedData.mode);
+    }
+  }, [suggestedData]);
+
+  useEffect(() => {
     if (open) {
+      const defaultSurveyor = isEditing 
+        ? (editCase?.surveyor ?? "") 
+        : (suggestedData?.surveyor?.name ?? "");
+      
       form.reset({
         caseNumber: editCase?.caseNumber ?? "",
         caseType: editCase?.caseType ?? "鑑界",
         landParcel: editCase?.landParcel ?? "",
-        surveyor: editCase?.surveyor ?? "",
+        surveyor: defaultSurveyor,
         surveyDate: getDefaultSurveyDate(),
         scheduledTime: editCase?.scheduledTime ?? "",
         notes: editCase?.notes ?? "",
@@ -112,15 +131,39 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
         latitude: editCase?.latitude ?? null,
       });
     }
-  }, [open, editCase, defaultDate]);
+  }, [open, editCase, defaultDate, suggestedData]);
+
+  const { data: settings } = useQuery<SystemSettings>({
+    queryKey: ["/api/settings"],
+    enabled: open && !isEditing,
+  });
 
   const createMutation = useMutation({
     mutationFn: async (data: FormValues) => {
       const response = await apiRequest("POST", "/api/cases", data);
+      
+      const selectedSurveyor = surveyorsList.find(s => s.name === data.surveyor);
+      if (selectedSurveyor && selectedSurveyor.businessAttribute === "複丈組") {
+        await apiRequest("PATCH", "/api/settings", {
+          lastAssignedSurveyorId: selectedSurveyor.id,
+        });
+        
+        if (assignmentMode === "points" && settings?.caseTypeWeights) {
+          const weights = settings.caseTypeWeights as Record<string, number>;
+          const weight = weights[data.caseType] ?? 1;
+          await apiRequest("POST", `/api/surveyors/${selectedSurveyor.id}/add-points`, {
+            points: weight,
+          });
+        }
+      }
+      
       return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/surveyors"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/surveyors/next/suggested"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
       toast({
         title: "案件已新增",
         description: "測量案件已成功建立，系統將自動查詢座標資訊",
@@ -255,7 +298,15 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                 name="surveyor"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>測量員 <span className="text-destructive">*</span></FormLabel>
+                    <FormLabel className="flex items-center gap-2">
+                      測量員 <span className="text-destructive">*</span>
+                      {!isEditing && suggestedSurveyor && (
+                        <Badge variant="outline" className="text-xs font-normal">
+                          <Sparkles className="h-3 w-3 mr-1" />
+                          {assignmentMode === "sequential" ? "順序建議" : "積分建議"}
+                        </Badge>
+                      )}
+                    </FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger data-testid="select-surveyor">
@@ -263,8 +314,18 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {surveyors.map((s) => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        {surveyorsList.map((s) => (
+                          <SelectItem key={s.id} value={s.name}>
+                            <div className="flex items-center gap-2">
+                              {s.name}
+                              {s.businessAttribute !== "複丈組" && (
+                                <span className="text-xs text-muted-foreground">({s.businessAttribute})</span>
+                              )}
+                              {suggestedSurveyor?.id === s.id && (
+                                <Sparkles className="h-3 w-3 text-primary" />
+                              )}
+                            </div>
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

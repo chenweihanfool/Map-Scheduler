@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -9,7 +10,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Filter, X } from "lucide-react";
-import { CASE_TYPES } from "@shared/schema";
+import { CASE_TYPES, type Surveyor } from "@shared/schema";
 
 interface CalendarFiltersProps {
   surveyorFilter: string;
@@ -21,10 +22,6 @@ interface CalendarFiltersProps {
   onClearFilters: () => void;
 }
 
-const surveyors = [
-  "王小明", "李大華", "張文雄", "陳志偉", "林美玲"
-];
-
 export function CalendarFilters({
   surveyorFilter,
   onSurveyorFilterChange,
@@ -34,6 +31,10 @@ export function CalendarFilters({
   onShowVacantOnlyChange,
   onClearFilters,
 }: CalendarFiltersProps) {
+  const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
+    queryKey: ["/api/surveyors"],
+  });
+
   const hasActiveFilters = surveyorFilter || caseTypeFilter || showVacantOnly;
 
   return (
@@ -49,8 +50,8 @@ export function CalendarFilters({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">全部測量員</SelectItem>
-          {surveyors.map((s) => (
-            <SelectItem key={s} value={s}>{s}</SelectItem>
+          {surveyorsList.map((s) => (
+            <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
           ))}
         </SelectContent>
       </Select>

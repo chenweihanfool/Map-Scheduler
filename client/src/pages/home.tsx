@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Plus, Map, Calendar as CalendarIcon, List, FileSpreadsheet, Database } from "lucide-react";
+import { Plus, Map, Calendar as CalendarIcon, List, FileSpreadsheet, Database, Settings } from "lucide-react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -90,6 +91,11 @@ export default function Home() {
                 <Plus className="h-4 w-4 mr-2" />
                 新增案件
               </Button>
+              <Link href="/settings">
+                <Button variant="ghost" size="icon" data-testid="button-settings">
+                  <Settings className="h-5 w-5" />
+                </Button>
+              </Link>
               <ThemeToggle />
             </div>
           </div>

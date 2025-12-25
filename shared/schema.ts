@@ -1,7 +1,25 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, doublePrecision, integer, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Business attribute options (業務屬性)
+export const BUSINESS_ATTRIBUTES = [
+  "複丈組",
+  "政策組", 
+  "重測組",
+  "其他",
+] as const;
+
+export type BusinessAttribute = typeof BUSINESS_ATTRIBUTES[number];
+
+// Assignment mode options (排件模式)
+export const ASSIGNMENT_MODES = [
+  "sequential", // 順序模式
+  "points",     // 積分模式
+] as const;
+
+export type AssignmentMode = typeof ASSIGNMENT_MODES[number];
 
 // Case type options (案件類型)
 export const CASE_TYPES = [
@@ -62,3 +80,42 @@ export const insertUserSchema = createInsertSchema(users).pick({
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+
+// Surveyors table (測量員)
+export const surveyors = pgTable("surveyors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  businessAttribute: text("business_attribute").notNull().default("複丈組"), // 業務屬性
+  points: integer("points").notNull().default(0), // 積分
+  sortOrder: integer("sort_order").notNull().default(0), // 排序順序
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSurveyorSchema = createInsertSchema(surveyors).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const updateSurveyorSchema = insertSurveyorSchema.partial();
+
+export type InsertSurveyor = z.infer<typeof insertSurveyorSchema>;
+export type UpdateSurveyor = z.infer<typeof updateSurveyorSchema>;
+export type Surveyor = typeof surveyors.$inferSelect;
+
+// System settings table (系統設定)
+export const systemSettings = pgTable("system_settings", {
+  id: varchar("id").primaryKey().default("default"),
+  assignmentMode: text("assignment_mode").notNull().default("sequential"), // sequential or points
+  caseTypeWeights: jsonb("case_type_weights").$type<Record<string, number>>().default({}), // 案件類型權重
+  lastAssignedSurveyorId: varchar("last_assigned_surveyor_id"), // 上次指派的測量員 (順序模式用)
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const updateSettingsSchema = z.object({
+  assignmentMode: z.enum(ASSIGNMENT_MODES).optional(),
+  caseTypeWeights: z.record(z.string(), z.number()).optional(),
+  lastAssignedSurveyorId: z.string().nullable().optional(),
+});
+
+export type UpdateSettings = z.infer<typeof updateSettingsSchema>;
+export type SystemSettings = typeof systemSettings.$inferSelect;
