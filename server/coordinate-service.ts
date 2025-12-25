@@ -229,13 +229,116 @@ async function lookupNLSC(landParcel: string): Promise<CoordinateResult | null> 
   }
 }
 
-// Main coordinate lookup function - tries multiple sources
+// Lookup coordinates from Miaoli County GIS
+async function lookupMiaoliGIS(landParcel: string): Promise<CoordinateResult | null> {
+  const parsed = parseLandParcel(landParcel);
+  if (!parsed) {
+    console.log(`Failed to parse land parcel for Miaoli GIS: ${landParcel}`);
+    return null;
+  }
+
+  const sectionInfo = MIAOLI_SECTIONS[parsed.section];
+  if (!sectionInfo) {
+    console.log(`Section not found for Miaoli GIS: ${parsed.section}`);
+    return null;
+  }
+
+  const formattedLandNo = formatLandNo(parsed.landno);
+  
+  // Miaoli County GIS API
+  const url = `https://gis.miaoli.gov.tw/api/land/query?office=${sectionInfo.office}&sect=${sectionInfo.sect}&landno=${formattedLandNo}`;
+  
+  console.log(`Querying Miaoli GIS API: ${url}`);
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      console.log(`Miaoli GIS API returned status: ${response.status}`);
+      return null;
+    }
+
+    const text = await response.text();
+    console.log(`Miaoli GIS API raw response: ${text.substring(0, 500)}`);
+    
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      console.log(`Failed to parse Miaoli GIS JSON response`);
+      return null;
+    }
+    
+    // Check for coordinates in response
+    if (data && data.longitude !== undefined && data.latitude !== undefined) {
+      console.log(`Miaoli GIS returned coordinates: ${data.longitude}, ${data.latitude}`);
+      return {
+        longitude: data.longitude,
+        latitude: data.latitude,
+        source: "MiaoliGIS",
+      };
+    }
+
+    // Alternative response format
+    if (data && data.x !== undefined && data.y !== undefined) {
+      console.log(`Miaoli GIS returned coordinates: ${data.x}, ${data.y}`);
+      return {
+        longitude: data.x,
+        latitude: data.y,
+        source: "MiaoliGIS",
+      };
+    }
+
+    console.log(`Miaoli GIS API response did not contain valid coordinates`);
+    return null;
+  } catch (error) {
+    console.error(`Miaoli GIS API error:`, error);
+    return null;
+  }
+}
+
+// Helper function to add timeout to async operations
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string
+): Promise<T | null> {
+  const timeoutPromise = new Promise<null>((resolve) => {
+    setTimeout(() => {
+      console.log(timeoutMessage);
+      resolve(null);
+    }, timeoutMs);
+  });
+  
+  return Promise.race([promise, timeoutPromise]);
+}
+
+// Main coordinate lookup function - tries multiple sources with timeout
 export async function lookupCoordinates(landParcel: string): Promise<CoordinateResult | null> {
   console.log(`Looking up coordinates for: ${landParcel}`);
   
-  // Try NLSC first
-  const result = await lookupNLSC(landParcel);
-  if (result) return result;
+  // Try NLSC first with 10 second timeout
+  const nlscResult = await withTimeout(
+    lookupNLSC(landParcel),
+    10000,
+    "NLSC lookup timed out after 10 seconds"
+  );
+  if (nlscResult) return nlscResult;
+
+  console.log(`NLSC lookup failed, trying Miaoli GIS...`);
+  
+  // Try Miaoli GIS as fallback with 10 second timeout
+  const miaoliResult = await withTimeout(
+    lookupMiaoliGIS(landParcel),
+    10000,
+    "Miaoli GIS lookup timed out after 10 seconds"
+  );
+  if (miaoliResult) return miaoliResult;
 
   console.log(`No coordinates found for: ${landParcel}`);
   return null;

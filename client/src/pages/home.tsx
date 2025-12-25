@@ -157,6 +157,63 @@ export default function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <Card className="mb-6">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <CardTitle className="text-lg">測量排程</CardTitle>
+                <CardDescription>
+                  共 {filteredCases.length} 筆案件{filteredCases.length !== cases.length && ` (已篩選，總共 ${cases.length} 筆)`}
+                </CardDescription>
+              </div>
+              <Tabs value={activeView} onValueChange={(v) => setActiveView(v as "calendar" | "list")}>
+                <TabsList>
+                  <TabsTrigger value="calendar" data-testid="tab-calendar">
+                    <CalendarIcon className="h-4 w-4 mr-2" />
+                    月曆
+                  </TabsTrigger>
+                  <TabsTrigger value="list" data-testid="tab-list">
+                    <List className="h-4 w-4 mr-2" />
+                    列表
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4">
+              <CalendarFilters
+                surveyorFilter={surveyorFilter}
+                onSurveyorFilterChange={setSurveyorFilter}
+                caseTypeFilter={caseTypeFilter}
+                onCaseTypeFilterChange={setCaseTypeFilter}
+                showVacantOnly={showVacantOnly}
+                onShowVacantOnlyChange={setShowVacantOnly}
+                onClearFilters={clearFilters}
+              />
+            </div>
+            
+            {activeView === "calendar" ? (
+              <CalendarView
+                cases={filteredCases}
+                currentMonth={currentMonth}
+                onMonthChange={setCurrentMonth}
+                onDateClick={handleDateClick}
+                onCaseClick={handleEdit}
+                surveyorFilter={surveyorFilter}
+                caseTypeFilter={caseTypeFilter}
+                showVacantOnly={showVacantOnly}
+              />
+            ) : (
+              <CasesTable 
+                cases={filteredCases} 
+                isLoading={isLoading} 
+                onEdit={handleEdit}
+              />
+            )}
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-6">
           {surveyorsList.map((surveyor, index) => {
             const caseCount = surveyorCaseCounts[surveyor.name] || 0;
@@ -215,63 +272,6 @@ export default function Home() {
             );
           })}
         </div>
-
-        <Card className="mb-6">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div>
-                <CardTitle className="text-lg">測量排程</CardTitle>
-                <CardDescription>
-                  共 {filteredCases.length} 筆案件{filteredCases.length !== cases.length && ` (已篩選，總共 ${cases.length} 筆)`}
-                </CardDescription>
-              </div>
-              <Tabs value={activeView} onValueChange={(v) => setActiveView(v as "calendar" | "list")}>
-                <TabsList>
-                  <TabsTrigger value="calendar" data-testid="tab-calendar">
-                    <CalendarIcon className="h-4 w-4 mr-2" />
-                    月曆
-                  </TabsTrigger>
-                  <TabsTrigger value="list" data-testid="tab-list">
-                    <List className="h-4 w-4 mr-2" />
-                    列表
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-4">
-              <CalendarFilters
-                surveyorFilter={surveyorFilter}
-                onSurveyorFilterChange={setSurveyorFilter}
-                caseTypeFilter={caseTypeFilter}
-                onCaseTypeFilterChange={setCaseTypeFilter}
-                showVacantOnly={showVacantOnly}
-                onShowVacantOnlyChange={setShowVacantOnly}
-                onClearFilters={clearFilters}
-              />
-            </div>
-            
-            {activeView === "calendar" ? (
-              <CalendarView
-                cases={filteredCases}
-                currentMonth={currentMonth}
-                onMonthChange={setCurrentMonth}
-                onDateClick={handleDateClick}
-                onCaseClick={handleEdit}
-                surveyorFilter={surveyorFilter}
-                caseTypeFilter={caseTypeFilter}
-                showVacantOnly={showVacantOnly}
-              />
-            ) : (
-              <CasesTable 
-                cases={filteredCases} 
-                isLoading={isLoading} 
-                onEdit={handleEdit}
-              />
-            )}
-          </CardContent>
-        </Card>
 
         <div className="mt-6 text-center text-sm text-muted-foreground">
           <p>座標資料來源：</p>

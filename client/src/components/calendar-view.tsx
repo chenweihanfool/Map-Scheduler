@@ -94,6 +94,10 @@ export function CalendarView({
       }
       map.get(dateKey)!.push(c);
     });
+    // Sort cases by scheduled time within each date
+    map.forEach((cases, dateKey) => {
+      cases.sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
+    });
     return map;
   }, [filteredCases]);
 

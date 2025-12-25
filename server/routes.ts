@@ -9,7 +9,7 @@ import {
   updateSettingsSchema,
   CASE_TYPES
 } from "@shared/schema";
-import { processCoordinateLookup } from "./coordinate-service";
+import { processCoordinateLookup, lookupCoordinates } from "./coordinate-service";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -51,14 +51,42 @@ export async function registerRoutes(
         });
       }
 
-      const surveyCase = await storage.createCase(validationResult.data);
+      // Check coordinates first before saving
+      const landParcel = validationResult.data.landParcel;
+      const coordinates = await lookupCoordinates(landParcel);
       
-      // Trigger async coordinate lookup
-      processCoordinateLookup(surveyCase.id).catch(err => {
-        console.error("Background coordinate lookup failed:", err);
-      });
+      if (!coordinates) {
+        return res.status(400).json({ 
+          error: "coordinate_not_found",
+          message: `無法取得地號座標：${landParcel}。已嘗試 NLSC 及苗栗縣 GIS，請確認地段地號是否正確。`
+        });
+      }
 
-      res.status(201).json(surveyCase);
+      // Add coordinates to the case data before saving
+      const caseDataWithCoords = {
+        ...validationResult.data,
+        longitude: coordinates.longitude,
+        latitude: coordinates.latitude,
+      };
+
+      const surveyCase = await storage.createCase(caseDataWithCoords);
+      
+      // Update coordinate status to success
+      await storage.updateCaseCoordinates(
+        surveyCase.id,
+        coordinates.longitude,
+        coordinates.latitude,
+        "success",
+        coordinates.source
+      );
+
+      res.status(201).json({
+        ...surveyCase,
+        longitude: coordinates.longitude,
+        latitude: coordinates.latitude,
+        coordinateStatus: "success",
+        coordinateSource: coordinates.source,
+      });
     } catch (error) {
       console.error("Error creating case:", error);
       res.status(500).json({ error: "Failed to create case" });
