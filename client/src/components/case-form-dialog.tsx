@@ -70,11 +70,48 @@ interface CaseFormDialogProps {
   defaultDate?: Date;
 }
 
-const timeSlots = [
-  "08:00", "08:30", "09:00", "09:30", "10:00", "10:30",
-  "11:00", "11:30", "13:00", "13:30", "14:00", "14:30",
-  "15:00", "15:30", "16:00", "16:30", "17:00"
-];
+const TIME_SLOTS = ["09:00", "14:00"];
+
+const CASE_TYPE_ALLOWED_SLOTS: Record<string, string[]> = {
+  "鑑界": ["09:00"],
+  "再鑑界": ["09:00"],
+};
+
+const getAllowedSlotsForCaseType = (caseType: string): string[] => {
+  return CASE_TYPE_ALLOWED_SLOTS[caseType] || TIME_SLOTS;
+};
+
+const isWeekend = (date: Date): boolean => {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+};
+
+const findNextAvailableDate = (
+  caseType: string,
+  existingCases: SurveyCase[],
+  startDate: Date = new Date()
+): { date: string; timeSlot: string } => {
+  const allowedSlots = getAllowedSlotsForCaseType(caseType);
+  let checkDate = new Date(startDate);
+  checkDate.setHours(0, 0, 0, 0);
+  
+  for (let i = 0; i < 365; i++) {
+    if (!isWeekend(checkDate)) {
+      const dateStr = format(checkDate, "yyyy-MM-dd");
+      const casesOnDate = existingCases.filter(c => c.surveyDate === dateStr);
+      const bookedSlots = casesOnDate.map(c => c.scheduledTime);
+      
+      for (const slot of allowedSlots) {
+        if (!bookedSlots.includes(slot)) {
+          return { date: dateStr, timeSlot: slot };
+        }
+      }
+    }
+    checkDate.setDate(checkDate.getDate() + 1);
+  }
+  
+  return { date: format(new Date(), "yyyy-MM-dd"), timeSlot: allowedSlots[0] };
+};
 
 export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: CaseFormDialogProps) {
   const { toast } = useToast();
@@ -84,6 +121,11 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
 
   const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
     queryKey: ["/api/surveyors"],
+  });
+
+  const { data: allCases = [] } = useQuery<SurveyCase[]>({
+    queryKey: ["/api/cases"],
+    enabled: open,
   });
 
   const { data: suggestedData } = useQuery<{ surveyor: Surveyor | null; mode: string }>({
@@ -150,20 +192,45 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
       
       const parsed = editCase?.landParcel ? parseLandParcel(editCase.landParcel) : { section: "", lotNumber: "" };
       
+      const defaultCaseType = editCase?.caseType ?? "鑑界";
+      let surveyDate = getDefaultSurveyDate();
+      let scheduledTime = editCase?.scheduledTime ?? "";
+      
+      if (!isEditing && allCases.length >= 0) {
+        const suggested = findNextAvailableDate(defaultCaseType, allCases);
+        surveyDate = suggested.date;
+        scheduledTime = suggested.timeSlot;
+      }
+      
       form.reset({
         caseNumber: editCase?.caseNumber ?? "",
-        caseType: editCase?.caseType ?? "鑑界",
+        caseType: defaultCaseType,
         section: parsed.section,
         lotNumber: parsed.lotNumber,
         surveyor: defaultSurveyor,
-        surveyDate: getDefaultSurveyDate(),
-        scheduledTime: editCase?.scheduledTime ?? "",
+        surveyDate,
+        scheduledTime,
         notes: editCase?.notes ?? "",
         longitude: editCase?.longitude ?? null,
         latitude: editCase?.latitude ?? null,
       });
     }
-  }, [open, editCase, defaultDate, suggestedData]);
+  }, [open, editCase, defaultDate, suggestedData, allCases]);
+
+  const watchedCaseType = form.watch("caseType");
+  
+  useEffect(() => {
+    if (open && !isEditing && watchedCaseType) {
+      const suggested = findNextAvailableDate(watchedCaseType, allCases);
+      const allowedSlots = getAllowedSlotsForCaseType(watchedCaseType);
+      const currentTime = form.getValues("scheduledTime");
+      
+      form.setValue("surveyDate", suggested.date);
+      if (!allowedSlots.includes(currentTime)) {
+        form.setValue("scheduledTime", suggested.timeSlot);
+      }
+    }
+  }, [watchedCaseType]);
 
   const { data: settings } = useQuery<SystemSettings>({
     queryKey: ["/api/settings"],
@@ -449,24 +516,29 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
             <FormField
               control={form.control}
               name="scheduledTime"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>排件時間 <span className="text-destructive">*</span></FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-time">
-                        <SelectValue placeholder="選擇時間" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {timeSlots.map((time) => (
-                        <SelectItem key={time} value={time}>{time}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
+              render={({ field }) => {
+                const allowedSlots = getAllowedSlotsForCaseType(watchedCaseType || "鑑界");
+                return (
+                  <FormItem>
+                    <FormLabel>排件時間 <span className="text-destructive">*</span></FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-time">
+                          <SelectValue placeholder="選擇時間" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {allowedSlots.map((time) => (
+                          <SelectItem key={time} value={time}>
+                            {time === "09:00" ? "上午 09:00" : "下午 14:00"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
 
             <FormField
