@@ -72,13 +72,13 @@ interface CaseFormDialogProps {
 
 const TIME_SLOTS = ["09:00", "14:00"];
 
-const CASE_TYPE_ALLOWED_SLOTS: Record<string, string[]> = {
+const CASE_TYPE_PREFERRED_SLOTS: Record<string, string[]> = {
   "鑑界": ["09:00"],
   "再鑑界": ["09:00"],
 };
 
-const getAllowedSlotsForCaseType = (caseType: string): string[] => {
-  return CASE_TYPE_ALLOWED_SLOTS[caseType] || TIME_SLOTS;
+const getPreferredSlotsForCaseType = (caseType: string): string[] => {
+  return CASE_TYPE_PREFERRED_SLOTS[caseType] || TIME_SLOTS;
 };
 
 const isWeekend = (date: Date): boolean => {
@@ -91,7 +91,7 @@ const findNextAvailableDate = (
   existingCases: SurveyCase[],
   startDate: Date = new Date()
 ): { date: string; timeSlot: string } => {
-  const allowedSlots = getAllowedSlotsForCaseType(caseType);
+  const preferredSlots = getPreferredSlotsForCaseType(caseType);
   let checkDate = new Date(startDate);
   checkDate.setHours(0, 0, 0, 0);
   
@@ -101,7 +101,7 @@ const findNextAvailableDate = (
       const casesOnDate = existingCases.filter(c => c.surveyDate === dateStr);
       const bookedSlots = casesOnDate.map(c => c.scheduledTime);
       
-      for (const slot of allowedSlots) {
+      for (const slot of preferredSlots) {
         if (!bookedSlots.includes(slot)) {
           return { date: dateStr, timeSlot: slot };
         }
@@ -110,7 +110,7 @@ const findNextAvailableDate = (
     checkDate.setDate(checkDate.getDate() + 1);
   }
   
-  return { date: format(new Date(), "yyyy-MM-dd"), timeSlot: allowedSlots[0] };
+  return { date: format(new Date(), "yyyy-MM-dd"), timeSlot: preferredSlots[0] };
 };
 
 export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: CaseFormDialogProps) {
@@ -222,13 +222,8 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
   useEffect(() => {
     if (open && !isEditing && watchedCaseType) {
       const suggested = findNextAvailableDate(watchedCaseType, allCases);
-      const allowedSlots = getAllowedSlotsForCaseType(watchedCaseType);
-      const currentTime = form.getValues("scheduledTime");
-      
       form.setValue("surveyDate", suggested.date);
-      if (!allowedSlots.includes(currentTime)) {
-        form.setValue("scheduledTime", suggested.timeSlot);
-      }
+      form.setValue("scheduledTime", suggested.timeSlot);
     }
   }, [watchedCaseType]);
 
@@ -516,29 +511,26 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
             <FormField
               control={form.control}
               name="scheduledTime"
-              render={({ field }) => {
-                const allowedSlots = getAllowedSlotsForCaseType(watchedCaseType || "鑑界");
-                return (
-                  <FormItem>
-                    <FormLabel>排件時間 <span className="text-destructive">*</span></FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-time">
-                          <SelectValue placeholder="選擇時間" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {allowedSlots.map((time) => (
-                          <SelectItem key={time} value={time}>
-                            {time === "09:00" ? "上午 09:00" : "下午 14:00"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                );
-              }}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>排件時間 <span className="text-destructive">*</span></FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-time">
+                        <SelectValue placeholder="選擇時間" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {TIME_SLOTS.map((time) => (
+                        <SelectItem key={time} value={time}>
+                          {time === "09:00" ? "上午 09:00" : "下午 14:00"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
 
             <FormField
