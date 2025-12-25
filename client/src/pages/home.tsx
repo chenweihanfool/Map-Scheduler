@@ -159,7 +159,10 @@ export default function Home() {
                 data-testid={`card-surveyor-${surveyor.id}`}
               >
                 <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium truncate">{surveyor.name}</CardTitle>
+                  <div className="min-w-0">
+                    <CardTitle className="text-sm font-medium truncate">{surveyor.name}</CardTitle>
+                    <p className="text-xs text-muted-foreground">{surveyor.businessAttribute}</p>
+                  </div>
                   <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 </CardHeader>
                 <CardContent>
