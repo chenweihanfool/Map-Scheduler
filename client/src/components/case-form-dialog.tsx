@@ -46,7 +46,8 @@ import { Badge } from "@/components/ui/badge";
 const formSchema = z.object({
   caseNumber: z.string().min(1, "案號為必填"),
   caseType: z.string().min(1, "案件類型為必填"),
-  landParcel: z.string().min(1, "地段地號為必填"),
+  section: z.string().min(1, "地段為必填"),
+  lotNumber: z.string().min(1, "地號為必填"),
   surveyor: z.string().min(1, "測量員為必填"),
   surveyDate: z.string().min(1, "日期為必填"),
   scheduledTime: z.string().min(1, "排件時間為必填"),
@@ -56,6 +57,11 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+const LAND_SECTIONS = [
+  { township: "苑裡鎮", sections: ["苑裡段", "苑東段", "苑西段", "苑南段", "苑北段", "房裡段", "山腳段", "舊社段", "社苓段", "蕉埔段", "石鎮段", "田寮段", "新復段", "山柑段", "水坡段"] },
+  { township: "通霄鎮", sections: ["通霄段", "城北段", "城南段", "五里牌段", "圳頭段", "楓樹窩段", "南和段", "烏眉段", "福興段", "白沙屯段", "新埔段", "內湖段", "坪頂段", "梅樹坑段"] },
+];
 
 interface CaseFormDialogProps {
   open: boolean;
@@ -91,12 +97,35 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
     return "";
   };
 
+  const parseLandParcel = (landParcel: string) => {
+    const match = landParcel.match(/^(.+?)(\d+地號.*)$/);
+    if (match) {
+      return { section: match[1], lotNumber: match[2] };
+    }
+    return { section: "", lotNumber: "" };
+  };
+
+  const getDefaultSection = () => {
+    if (editCase?.landParcel) {
+      return parseLandParcel(editCase.landParcel).section;
+    }
+    return "";
+  };
+
+  const getDefaultLotNumber = () => {
+    if (editCase?.landParcel) {
+      return parseLandParcel(editCase.landParcel).lotNumber;
+    }
+    return "";
+  };
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       caseNumber: editCase?.caseNumber ?? "",
       caseType: editCase?.caseType ?? "鑑界",
-      landParcel: editCase?.landParcel ?? "",
+      section: getDefaultSection(),
+      lotNumber: getDefaultLotNumber(),
       surveyor: editCase?.surveyor ?? "",
       surveyDate: getDefaultSurveyDate(),
       scheduledTime: editCase?.scheduledTime ?? "",
@@ -119,10 +148,13 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
         ? (editCase?.surveyor ?? "") 
         : (suggestedData?.surveyor?.name ?? "");
       
+      const parsed = editCase?.landParcel ? parseLandParcel(editCase.landParcel) : { section: "", lotNumber: "" };
+      
       form.reset({
         caseNumber: editCase?.caseNumber ?? "",
         caseType: editCase?.caseType ?? "鑑界",
-        landParcel: editCase?.landParcel ?? "",
+        section: parsed.section,
+        lotNumber: parsed.lotNumber,
         surveyor: defaultSurveyor,
         surveyDate: getDefaultSurveyDate(),
         scheduledTime: editCase?.scheduledTime ?? "",
@@ -140,7 +172,9 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
 
   const createMutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      const response = await apiRequest("POST", "/api/cases", data);
+      const { section, lotNumber, ...rest } = data;
+      const landParcel = `${section}${lotNumber}`;
+      const response = await apiRequest("POST", "/api/cases", { ...rest, landParcel });
       
       const selectedSurveyor = surveyorsList.find(s => s.name === data.surveyor);
       if (selectedSurveyor && selectedSurveyor.businessAttribute === "複丈組") {
@@ -182,7 +216,9 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
 
   const updateMutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      const response = await apiRequest("PATCH", `/api/cases/${editCase?.id}`, data);
+      const { section, lotNumber, ...rest } = data;
+      const landParcel = `${section}${lotNumber}`;
+      const response = await apiRequest("PATCH", `/api/cases/${editCase?.id}`, { ...rest, landParcel });
       return response;
     },
     onSuccess: () => {
@@ -274,23 +310,58 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
               />
             </div>
 
-            <FormField
-              control={form.control}
-              name="landParcel"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>地段地號 <span className="text-destructive">*</span></FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="例: 苗栗市中正段123地號" 
-                      {...field}
-                      data-testid="input-land-parcel"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="section"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>地段 <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input 
+                          placeholder="例: 苑裡鎮苑東段" 
+                          {...field}
+                          list="section-list"
+                          data-testid="input-section"
+                        />
+                        <datalist id="section-list">
+                          {LAND_SECTIONS.map((group) =>
+                            group.sections.map((section) => (
+                              <option key={`${group.township}-${section}`} value={`${group.township}${section}`} />
+                            ))
+                          )}
+                          {LAND_SECTIONS.map((group) =>
+                            group.sections.map((section) => (
+                              <option key={section} value={section} />
+                            ))
+                          )}
+                        </datalist>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="lotNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>地號 <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="例: 184地號" 
+                        {...field}
+                        data-testid="input-lot-number"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
