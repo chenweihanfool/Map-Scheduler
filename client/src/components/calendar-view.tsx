@@ -243,10 +243,10 @@ export function CalendarView({
 
       <div className="flex flex-wrap items-center gap-4 pt-2">
         <span className="text-sm text-muted-foreground">測量員：</span>
-        {Object.entries(surveyorColors).map(([surveyor, colorClass]) => (
-          <div key={surveyor} className="flex items-center gap-1">
-            <div className={cn("w-3 h-3 rounded-sm border", colorClass)} />
-            <span className="text-xs">{surveyor}</span>
+        {surveyorsList.map((surveyor) => (
+          <div key={surveyor.id} className="flex items-center gap-1">
+            <div className={cn("w-3 h-3 rounded-sm border", surveyorColors[surveyor.name] || "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700")} />
+            <span className="text-xs">{surveyor.name}</span>
           </div>
         ))}
       </div>

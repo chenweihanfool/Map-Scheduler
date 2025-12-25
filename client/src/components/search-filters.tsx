@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { CalendarIcon, Search, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
@@ -16,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import type { Surveyor } from "@shared/schema";
 
 interface SearchFiltersProps {
   searchQuery: string;
@@ -29,10 +31,6 @@ interface SearchFiltersProps {
   onClearFilters: () => void;
 }
 
-const surveyors = [
-  "王小明", "李大華", "張文雄", "陳志偉", "林美玲"
-];
-
 export function SearchFilters({
   searchQuery,
   onSearchChange,
@@ -44,6 +42,10 @@ export function SearchFilters({
   onStatusFilterChange,
   onClearFilters,
 }: SearchFiltersProps) {
+  const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
+    queryKey: ["/api/surveyors"],
+  });
+
   const hasActiveFilters = searchQuery || surveyorFilter || dateFilter || statusFilter;
 
   return (
@@ -66,8 +68,8 @@ export function SearchFilters({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部測量員</SelectItem>
-            {surveyors.map((s) => (
-              <SelectItem key={s} value={s}>{s}</SelectItem>
+            {surveyorsList.map((s) => (
+              <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>

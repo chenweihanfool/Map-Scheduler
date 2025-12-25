@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus, Map, Calendar as CalendarIcon, List, Settings, User } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -10,7 +11,7 @@ import { CaseFormDialog } from "@/components/case-form-dialog";
 import { CasesTable } from "@/components/cases-table";
 import { CalendarView } from "@/components/calendar-view";
 import { CalendarFilters } from "@/components/calendar-filters";
-import type { SurveyCase, Surveyor } from "@shared/schema";
+import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
 export default function Home() {
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -37,6 +38,32 @@ export default function Home() {
   const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
     queryKey: ["/api/surveyors"],
   });
+
+  const { data: settings } = useQuery<SystemSettings>({
+    queryKey: ["/api/settings"],
+  });
+
+  // Calculate next assignee based on assignment mode
+  const nextAssigneeId = useMemo(() => {
+    const eligibleSurveyors = surveyorsList.filter(s => s.businessAttribute === "複丈組");
+    if (eligibleSurveyors.length === 0) return null;
+
+    if (settings?.assignmentMode === "points") {
+      // Points mode: lowest points is next
+      const lowestPointsSurveyor = eligibleSurveyors.reduce((min, s) => 
+        s.points < min.points ? s : min, eligibleSurveyors[0]);
+      return lowestPointsSurveyor.id;
+    } else {
+      // Sequential mode: next after lastAssignedSurveyorId
+      const lastId = settings?.lastAssignedSurveyorId;
+      if (!lastId) {
+        return eligibleSurveyors[0].id;
+      }
+      const lastIndex = eligibleSurveyors.findIndex(s => s.id === lastId);
+      const nextIndex = (lastIndex + 1) % eligibleSurveyors.length;
+      return eligibleSurveyors[nextIndex].id;
+    }
+  }, [surveyorsList, settings]);
 
   const filteredCases = useMemo(() => {
     return cases.filter((c) => {
@@ -120,6 +147,10 @@ export default function Home() {
           {surveyorsList.map((surveyor) => {
             const caseCount = surveyorCaseCounts[surveyor.name] || 0;
             const isSelected = surveyorFilter === surveyor.name;
+            const isNextAssignee = surveyor.id === nextAssigneeId;
+            const isEligible = surveyor.businessAttribute === "複丈組";
+            const isPointsMode = settings?.assignmentMode === "points";
+            
             return (
               <Card
                 key={surveyor.id}
@@ -133,11 +164,28 @@ export default function Home() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold" data-testid={`stat-cases-${surveyor.id}`}>{caseCount}</div>
-                  <div className="flex items-center justify-between gap-2 mt-1">
+                  <div className="flex items-center justify-between gap-2 mt-1 flex-wrap">
                     <p className="text-xs text-muted-foreground">件案件</p>
-                    <p className="text-xs text-muted-foreground" data-testid={`stat-points-${surveyor.id}`}>
-                      積分: {surveyor.points}
-                    </p>
+                    {isEligible && (
+                      isPointsMode ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground" data-testid={`stat-points-${surveyor.id}`}>
+                            積分: {surveyor.points}
+                          </span>
+                          {isNextAssignee && (
+                            <Badge variant="default" className="text-[10px] px-1 py-0" data-testid={`badge-next-${surveyor.id}`}>
+                              下一位
+                            </Badge>
+                          )}
+                        </div>
+                      ) : (
+                        isNextAssignee && (
+                          <Badge variant="default" className="text-[10px] px-1 py-0" data-testid={`badge-next-${surveyor.id}`}>
+                            下一位承辦
+                          </Badge>
+                        )
+                      )
+                    )}
                   </div>
                 </CardContent>
               </Card>
