@@ -119,3 +119,21 @@ export const updateSettingsSchema = z.object({
 
 export type UpdateSettings = z.infer<typeof updateSettingsSchema>;
 export type SystemSettings = typeof systemSettings.$inferSelect;
+
+// Surveyor leaves table (測量員請假)
+export const surveyorLeaves = pgTable("surveyor_leaves", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  surveyorId: varchar("surveyor_id").notNull().references(() => surveyors.id, { onDelete: "cascade" }),
+  surveyorName: text("surveyor_name").notNull(), // 備份名稱方便查詢
+  leaveDate: text("leave_date").notNull(), // 請假日期 (YYYY-MM-DD format)
+  reason: text("reason"), // 請假原因
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSurveyorLeaveSchema = createInsertSchema(surveyorLeaves).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertSurveyorLeave = z.infer<typeof insertSurveyorLeaveSchema>;
+export type SurveyorLeave = typeof surveyorLeaves.$inferSelect;
