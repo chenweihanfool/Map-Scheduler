@@ -40,8 +40,10 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import { CASE_TYPES, type SurveyCase, type Surveyor, type SystemSettings } from "@shared/schema";
+import { CASE_TYPES, type SurveyCase, type Surveyor, type SystemSettings, type SurveyorLeave } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 
 const formSchema = z.object({
   caseNumber: z.string().min(1, "案號為必填"),
@@ -190,6 +192,30 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
   });
 
   const watchedSurveyDate = form.watch("surveyDate");
+  const watchedSurveyor = form.watch("surveyor");
+  const watchedScheduledTime = form.watch("scheduledTime");
+
+  const { data: leavesOnDate = [] } = useQuery<SurveyorLeave[]>({
+    queryKey: ["/api/leaves/date", watchedSurveyDate],
+    queryFn: async () => {
+      if (!watchedSurveyDate) return [];
+      const res = await fetch(`/api/leaves/date/${watchedSurveyDate}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: open && !!watchedSurveyDate,
+  });
+
+  const isSurveyorOnLeave = !!(watchedSurveyor && leavesOnDate.some(l => l.surveyorName === watchedSurveyor));
+  
+  const isTimeSlotFull = !!(watchedSurveyDate && watchedScheduledTime && 
+    allCases.filter(c => 
+      c.surveyDate === watchedSurveyDate && 
+      c.scheduledTime === watchedScheduledTime &&
+      (!isEditing || c.id !== editCase?.id)
+    ).length > 0);
+
+  const hasValidationWarnings = isSurveyorOnLeave || isTimeSlotFull;
 
   const { data: suggestedData } = useQuery<{ surveyor: Surveyor | null; mode: string }>({
     queryKey: ["/api/surveyors/next/suggested", watchedSurveyDate],
@@ -587,6 +613,20 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
               )}
             />
 
+            {hasValidationWarnings && (
+              <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="space-y-1">
+                  {isSurveyorOnLeave && (
+                    <p>所選測量員 ({watchedSurveyor}) 在該日期請假，請重新選擇</p>
+                  )}
+                  {isTimeSlotFull && (
+                    <p>所選時段 ({watchedScheduledTime}) 在該日期已滿，請重新選擇</p>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
             <DialogFooter className="gap-2">
               <Button 
                 type="button" 
@@ -598,7 +638,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
               </Button>
               <Button 
                 type="submit" 
-                disabled={isPending}
+                disabled={isPending || hasValidationWarnings}
                 data-testid="button-submit"
               >
                 {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
