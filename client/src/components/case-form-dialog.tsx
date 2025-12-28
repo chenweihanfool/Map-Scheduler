@@ -137,6 +137,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
   const isEditing = !!editCase;
   const [suggestedSurveyor, setSuggestedSurveyor] = useState<Surveyor | null>(null);
   const [assignmentMode, setAssignmentMode] = useState<string>("sequential");
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
     queryKey: ["/api/surveyors"],
@@ -242,6 +243,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
 
   useEffect(() => {
     if (open) {
+      setIsInitialLoad(true);
       const defaultSurveyor = isEditing 
         ? (editCase?.surveyor ?? "") 
         : (suggestedData?.surveyor?.name ?? "");
@@ -270,18 +272,12 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
         longitude: editCase?.longitude ?? null,
         latitude: editCase?.latitude ?? null,
       });
+      
+      setTimeout(() => setIsInitialLoad(false), 100);
     }
-  }, [open, editCase, defaultDate, suggestedData, allCases]);
+  }, [open, editCase, defaultDate, suggestedData]);
 
   const watchedCaseType = form.watch("caseType");
-  
-  useEffect(() => {
-    if (open && !isEditing && watchedCaseType) {
-      const suggested = findNextAvailableDate(watchedCaseType, allCases);
-      form.setValue("surveyDate", suggested.date);
-      form.setValue("scheduledTime", suggested.timeSlot);
-    }
-  }, [watchedCaseType]);
 
   const { data: settings } = useQuery<SystemSettings>({
     queryKey: ["/api/settings"],
