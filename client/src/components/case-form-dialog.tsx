@@ -246,7 +246,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
       setIsInitialLoad(true);
       const defaultSurveyor = isEditing 
         ? (editCase?.surveyor ?? "") 
-        : (suggestedData?.surveyor?.name ?? "");
+        : "";
       
       const parsed = editCase?.landParcel ? parseLandParcel(editCase.landParcel) : { section: "", lotNumber: "" };
       
@@ -275,7 +275,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
       
       setTimeout(() => setIsInitialLoad(false), 100);
     }
-  }, [open, editCase, defaultDate, suggestedData]);
+  }, [open, editCase, defaultDate]);
 
   const watchedCaseType = form.watch("caseType");
 
