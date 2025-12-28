@@ -146,8 +146,9 @@ export default function Home() {
                 新增案件
               </Button>
               <Link href="/leaves">
-                <Button variant="ghost" size="icon" data-testid="button-leaves">
-                  <CalendarOff className="h-5 w-5" />
+                <Button variant="outline" data-testid="button-leaves">
+                  <CalendarOff className="h-4 w-4 mr-2" />
+                  請假管理
                 </Button>
               </Link>
               <Link href="/settings">
