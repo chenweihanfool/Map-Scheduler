@@ -7,6 +7,7 @@ import {
   insertSurveyorSchema,
   updateSurveyorSchema,
   updateSettingsSchema,
+  insertSurveyorLeaveSchema,
   CASE_TYPES
 } from "@shared/schema";
 import { processCoordinateLookup, lookupCoordinates } from "./coordinate-service";
@@ -325,6 +326,62 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error adding points:", error);
       res.status(500).json({ error: "Failed to add points" });
+    }
+  });
+
+  // ===== Surveyor Leaves API =====
+
+  // Get all upcoming leaves
+  app.get("/api/leaves", async (req, res) => {
+    try {
+      const leaves = await storage.getAllLeaves();
+      res.json(leaves);
+    } catch (error) {
+      console.error("Error fetching leaves:", error);
+      res.status(500).json({ error: "Failed to fetch leaves" });
+    }
+  });
+
+  // Get leaves by date
+  app.get("/api/leaves/date/:date", async (req, res) => {
+    try {
+      const leaves = await storage.getLeavesByDate(req.params.date);
+      res.json(leaves);
+    } catch (error) {
+      console.error("Error fetching leaves by date:", error);
+      res.status(500).json({ error: "Failed to fetch leaves" });
+    }
+  });
+
+  // Create leave
+  app.post("/api/leaves", async (req, res) => {
+    try {
+      const validationResult = insertSurveyorLeaveSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: "Validation failed", 
+          details: validationResult.error.flatten() 
+        });
+      }
+      const leave = await storage.createLeave(validationResult.data);
+      res.status(201).json(leave);
+    } catch (error) {
+      console.error("Error creating leave:", error);
+      res.status(500).json({ error: "Failed to create leave" });
+    }
+  });
+
+  // Delete leave
+  app.delete("/api/leaves/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteLeave(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Leave not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting leave:", error);
+      res.status(500).json({ error: "Failed to delete leave" });
     }
   });
 

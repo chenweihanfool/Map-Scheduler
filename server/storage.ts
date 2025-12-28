@@ -1,12 +1,13 @@
 import { 
-  users, surveyCases, surveyors, systemSettings,
+  users, surveyCases, surveyors, systemSettings, surveyorLeaves,
   type User, type InsertUser,
   type SurveyCase, type InsertSurveyCase, type UpdateSurveyCase,
   type Surveyor, type InsertSurveyor, type UpdateSurveyor,
-  type SystemSettings, type UpdateSettings
+  type SystemSettings, type UpdateSettings,
+  type SurveyorLeave, type InsertSurveyorLeave
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, asc } from "drizzle-orm";
+import { eq, desc, asc, and, gte } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -29,6 +30,12 @@ export interface IStorage {
 
   getSettings(): Promise<SystemSettings>;
   updateSettings(data: UpdateSettings): Promise<SystemSettings>;
+
+  getAllLeaves(): Promise<SurveyorLeave[]>;
+  getLeavesByDate(date: string): Promise<SurveyorLeave[]>;
+  getLeavesBySurveyor(surveyorId: string): Promise<SurveyorLeave[]>;
+  createLeave(data: InsertSurveyorLeave): Promise<SurveyorLeave>;
+  deleteLeave(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -167,6 +174,34 @@ export class DatabaseStorage implements IStorage {
       .where(eq(systemSettings.id, "default"))
       .returning();
     return settings;
+  }
+
+  async getAllLeaves(): Promise<SurveyorLeave[]> {
+    const today = new Date().toISOString().split('T')[0];
+    return db.select().from(surveyorLeaves)
+      .where(gte(surveyorLeaves.leaveDate, today))
+      .orderBy(asc(surveyorLeaves.leaveDate));
+  }
+
+  async getLeavesByDate(date: string): Promise<SurveyorLeave[]> {
+    return db.select().from(surveyorLeaves)
+      .where(eq(surveyorLeaves.leaveDate, date));
+  }
+
+  async getLeavesBySurveyor(surveyorId: string): Promise<SurveyorLeave[]> {
+    return db.select().from(surveyorLeaves)
+      .where(eq(surveyorLeaves.surveyorId, surveyorId))
+      .orderBy(asc(surveyorLeaves.leaveDate));
+  }
+
+  async createLeave(data: InsertSurveyorLeave): Promise<SurveyorLeave> {
+    const [leave] = await db.insert(surveyorLeaves).values(data).returning();
+    return leave;
+  }
+
+  async deleteLeave(id: string): Promise<boolean> {
+    const result = await db.delete(surveyorLeaves).where(eq(surveyorLeaves.id, id)).returning();
+    return result.length > 0;
   }
 }
 
