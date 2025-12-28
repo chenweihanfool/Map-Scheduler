@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Map, Calendar as CalendarIcon, List, Settings, User } from "lucide-react";
+import { Plus, Map, Calendar as CalendarIcon, List, Settings, User, CalendarOff } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -145,6 +145,11 @@ export default function Home() {
                 <Plus className="h-4 w-4 mr-2" />
                 新增案件
               </Button>
+              <Link href="/leaves">
+                <Button variant="ghost" size="icon" data-testid="button-leaves">
+                  <CalendarOff className="h-5 w-5" />
+                </Button>
+              </Link>
               <Link href="/settings">
                 <Button variant="ghost" size="icon" data-testid="button-settings">
                   <Settings className="h-5 w-5" />
