@@ -13,10 +13,10 @@ import {
   subMonths
 } from "date-fns";
 import { zhTW } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { SurveyCase, Surveyor } from "@shared/schema";
+import type { SurveyCase, Surveyor, SurveyorLeave } from "@shared/schema";
 
 interface CalendarViewProps {
   cases: SurveyCase[];
@@ -60,6 +60,10 @@ export function CalendarView({
     queryKey: ["/api/surveyors"],
   });
 
+  const { data: leavesList = [] } = useQuery<SurveyorLeave[]>({
+    queryKey: ["/api/leaves"],
+  });
+
   const surveyorColors = useMemo(() => {
     const colors: Record<string, string> = {};
     surveyorsList.forEach((surveyor, index) => {
@@ -94,12 +98,23 @@ export function CalendarView({
       }
       map.get(dateKey)!.push(c);
     });
-    // Sort cases by scheduled time within each date
     map.forEach((cases, dateKey) => {
       cases.sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
     });
     return map;
   }, [filteredCases]);
+
+  const leavesByDate = useMemo(() => {
+    const map = new Map<string, SurveyorLeave[]>();
+    leavesList.forEach((leave) => {
+      const dateKey = leave.leaveDate;
+      if (!map.has(dateKey)) {
+        map.set(dateKey, []);
+      }
+      map.get(dateKey)!.push(leave);
+    });
+    return map;
+  }, [leavesList]);
 
   const handlePrevMonth = () => {
     onMonthChange(subMonths(currentMonth, 1));
@@ -149,6 +164,7 @@ export function CalendarView({
         {days.map((day) => {
           const dateKey = format(day, "yyyy-MM-dd");
           const dayCases = casesByDate.get(dateKey) || [];
+          const dayLeaves = leavesByDate.get(dateKey) || [];
           const isCurrentMonth = isSameMonth(day, currentMonth);
           const isTodayDate = isToday(day);
           const dayOfWeek = day.getDay();
@@ -209,7 +225,14 @@ export function CalendarView({
                 </Button>
               </div>
 
-              <div className="space-y-1 overflow-y-auto max-h-[80px]">
+              {dayLeaves.length > 0 && (
+                <div className="mb-1 flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400" data-testid={`leaves-${dateKey}`}>
+                  <UserX className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">{dayLeaves.map(l => l.surveyorName).join(", ")}</span>
+                </div>
+              )}
+
+              <div className="space-y-1 overflow-y-auto max-h-[70px]">
                 {Object.entries(groupedBySurveyor).map(([surveyor, surveyorCases]) => (
                   <div key={surveyor} className="space-y-0.5">
                     <div className="text-xs font-medium text-muted-foreground truncate">
@@ -225,7 +248,7 @@ export function CalendarView({
                         )}
                         data-testid={`case-${c.id}`}
                       >
-                        {c.scheduledTime} {c.caseType}
+                        {c.scheduledTime} {c.caseType} {c.landParcel}
                       </button>
                     ))}
                   </div>
