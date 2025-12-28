@@ -145,11 +145,6 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
     enabled: open,
   });
 
-  const { data: suggestedData } = useQuery<{ surveyor: Surveyor | null; mode: string }>({
-    queryKey: ["/api/surveyors/next/suggested"],
-    enabled: open && !isEditing,
-  });
-
   const getDefaultSurveyDate = () => {
     if (editCase?.surveyDate) return editCase.surveyDate;
     if (defaultDate) return format(defaultDate, "yyyy-MM-dd");
@@ -194,12 +189,30 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
     },
   });
 
+  const watchedSurveyDate = form.watch("surveyDate");
+
+  const { data: suggestedData } = useQuery<{ surveyor: Surveyor | null; mode: string }>({
+    queryKey: ["/api/surveyors/next/suggested", watchedSurveyDate],
+    queryFn: async () => {
+      const url = watchedSurveyDate 
+        ? `/api/surveyors/next/suggested?date=${watchedSurveyDate}`
+        : "/api/surveyors/next/suggested";
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to fetch suggested surveyor");
+      return res.json();
+    },
+    enabled: open && !isEditing,
+  });
+
   useEffect(() => {
     if (suggestedData) {
       setSuggestedSurveyor(suggestedData.surveyor);
       setAssignmentMode(suggestedData.mode);
+      if (!isEditing && suggestedData.surveyor) {
+        form.setValue("surveyor", suggestedData.surveyor.name);
+      }
     }
-  }, [suggestedData]);
+  }, [suggestedData, isEditing]);
 
   useEffect(() => {
     if (open) {
@@ -479,6 +492,11 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                         ))}
                       </SelectContent>
                     </Select>
+                    {!isEditing && suggestedData && !suggestedData.surveyor && (
+                      <p className="text-xs text-muted-foreground">
+                        當日所有複丈組測量員皆請假，請手動選擇
+                      </p>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}

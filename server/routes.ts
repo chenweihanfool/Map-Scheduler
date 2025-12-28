@@ -234,14 +234,23 @@ export async function registerRoutes(
   });
 
   // Get next suggested surveyor based on assignment mode
+  // Accepts optional ?date=YYYY-MM-DD to exclude surveyors on leave
   app.get("/api/surveyors/next/suggested", async (req, res) => {
     try {
       const settings = await storage.getSettings();
       const allSurveyors = await storage.getAllSurveyors();
+      const date = req.query.date as string | undefined;
       
-      // Filter only 複丈組 surveyors for auto-assignment, sorted by sortOrder
+      // Get surveyors on leave for the given date
+      let surveyorIdsOnLeave: Set<string> = new Set();
+      if (date) {
+        const leaves = await storage.getLeavesByDate(date);
+        surveyorIdsOnLeave = new Set(leaves.map(l => l.surveyorId));
+      }
+      
+      // Filter only 複丈組 surveyors for auto-assignment, excluding those on leave
       const eligibleSurveyors = allSurveyors
-        .filter(s => s.businessAttribute === "複丈組")
+        .filter(s => s.businessAttribute === "複丈組" && !surveyorIdsOnLeave.has(s.id))
         .sort((a, b) => a.sortOrder - b.sortOrder);
       
       if (eligibleSurveyors.length === 0) {
@@ -260,7 +269,7 @@ export async function registerRoutes(
           // Find the index of the last assigned surveyor
           const lastIndex = eligibleSurveyors.findIndex(s => s.id === lastId);
           if (lastIndex === -1) {
-            // Last assigned surveyor not found in eligible list (maybe deleted or changed attribute)
+            // Last assigned surveyor not found in eligible list (maybe deleted, on leave, or changed attribute)
             suggestedSurveyor = eligibleSurveyors[0];
           } else {
             // Rotate to the next surveyor in the list
