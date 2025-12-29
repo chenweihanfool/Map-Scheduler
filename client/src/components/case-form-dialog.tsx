@@ -156,11 +156,18 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
   };
 
   const parseLandParcel = (landParcel: string) => {
-    const match = landParcel.match(/^(.+?)(\d+地號.*)$/);
-    if (match) {
-      return { section: match[1], lotNumber: match[2] };
+    // Try to match format with "地號" suffix first (e.g., "苑東段184地號")
+    const matchWithSuffix = landParcel.match(/^(.+段)(\d+地號.*)$/);
+    if (matchWithSuffix) {
+      return { section: matchWithSuffix[1], lotNumber: matchWithSuffix[2] };
     }
-    return { section: "", lotNumber: "" };
+    // Try to match format without "地號" suffix (e.g., "苑裡鎮芎蕉坑段1")
+    const matchWithoutSuffix = landParcel.match(/^(.+段)(\d+.*)$/);
+    if (matchWithoutSuffix) {
+      return { section: matchWithoutSuffix[1], lotNumber: matchWithoutSuffix[2] };
+    }
+    // Fallback: return the full string as section if no match
+    return { section: landParcel, lotNumber: "" };
   };
 
   const getDefaultSection = () => {
