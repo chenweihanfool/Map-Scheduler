@@ -219,7 +219,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
 
   const hasValidationWarnings = isSurveyorOnLeave || isTimeSlotFull;
 
-  const { data: suggestedData } = useQuery<{ surveyor: Surveyor | null; mode: string }>({
+  const { data: suggestedData, refetch: refetchSuggested } = useQuery<{ surveyor: Surveyor | null; mode: string }>({
     queryKey: ["/api/surveyors/next/suggested", watchedSurveyDate],
     queryFn: async () => {
       const url = watchedSurveyDate 
@@ -230,6 +230,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
       return res.json();
     },
     enabled: open && !isEditing,
+    staleTime: 0,
   });
 
   useEffect(() => {
@@ -274,6 +275,10 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
         longitude: editCase?.longitude ?? null,
         latitude: editCase?.latitude ?? null,
       });
+      
+      if (!isEditing) {
+        refetchSuggested();
+      }
       
       setTimeout(() => setIsInitialLoad(false), 100);
     }
