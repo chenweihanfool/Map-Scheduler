@@ -50,47 +50,6 @@ const selectedIcon = L.divIcon({
   popupAnchor: [0, -32],
 });
 
-function twd97ToWgs84(e: number, n: number): [number, number] {
-  const a = 6378137.0;
-  const b = 6356752.314245;
-  const lng0 = 121.0 * Math.PI / 180;
-  const k0 = 0.9999;
-  const dx = 250000;
-  const dy = 0;
-  
-  const e2 = 1 - (b / a) * (b / a);
-  const e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
-  
-  const x = e - dx;
-  const y = n - dy;
-  
-  const M = y / k0;
-  const mu = M / (a * (1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 * e2 * e2 / 256));
-  
-  const phi1 = mu + (3 * e1 / 2 - 27 * Math.pow(e1, 3) / 32) * Math.sin(2 * mu)
-    + (21 * e1 * e1 / 16 - 55 * Math.pow(e1, 4) / 32) * Math.sin(4 * mu)
-    + (151 * Math.pow(e1, 3) / 96) * Math.sin(6 * mu);
-  
-  const N1 = a / Math.sqrt(1 - e2 * Math.sin(phi1) * Math.sin(phi1));
-  const T1 = Math.tan(phi1) * Math.tan(phi1);
-  const C1 = (e2 / (1 - e2)) * Math.cos(phi1) * Math.cos(phi1);
-  const R1 = a * (1 - e2) / Math.pow(1 - e2 * Math.sin(phi1) * Math.sin(phi1), 1.5);
-  const D = x / (N1 * k0);
-  
-  const lat = phi1 - (N1 * Math.tan(phi1) / R1) * (
-    D * D / 2
-    - (5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * e2 / (1 - e2)) * Math.pow(D, 4) / 24
-    + (61 + 90 * T1 + 298 * C1 + 45 * T1 * T1 - 252 * e2 / (1 - e2) - 3 * C1 * C1) * Math.pow(D, 6) / 720
-  );
-  
-  const lon = lng0 + (
-    D
-    - (1 + 2 * T1 + C1) * Math.pow(D, 3) / 6
-    + (5 - 2 * C1 + 28 * T1 - 3 * C1 * C1 + 8 * e2 / (1 - e2) + 24 * T1 * T1) * Math.pow(D, 5) / 120
-  ) / Math.cos(phi1);
-  
-  return [lat * 180 / Math.PI, lon * 180 / Math.PI];
-}
 
 function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
@@ -123,12 +82,12 @@ export function CaseMap({ cases, onCaseClick, selectedCaseId, className }: CaseM
     
     const selected = casesWithCoords.find(c => c.id === selectedCaseId);
     if (selected && selected.longitude && selected.latitude) {
-      return twd97ToWgs84(selected.longitude, selected.latitude);
+      return [selected.latitude, selected.longitude];
     }
     
     const firstCase = casesWithCoords[0];
     if (firstCase.longitude && firstCase.latitude) {
-      return twd97ToWgs84(firstCase.longitude, firstCase.latitude);
+      return [firstCase.latitude, firstCase.longitude];
     }
     
     return [24.5, 120.8];
@@ -150,7 +109,8 @@ export function CaseMap({ cases, onCaseClick, selectedCaseId, className }: CaseM
           <MapController center={defaultCenter} zoom={15} />
         )}
         {casesWithCoords.map((caseItem) => {
-          const [lat, lng] = twd97ToWgs84(caseItem.longitude!, caseItem.latitude!);
+          const lat = caseItem.latitude!;
+          const lng = caseItem.longitude!;
           const isSelected = caseItem.id === selectedCaseId;
           
           return (
