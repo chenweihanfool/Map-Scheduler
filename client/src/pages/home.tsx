@@ -155,20 +155,22 @@ export default function Home() {
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-4 h-16">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 shrink-0">
               <MapIcon className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-semibold">測量案件排程系統</h1>
+              <h1 className="text-xl font-semibold hidden sm:block">測量案件排程系統</h1>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex-1 max-w-md mx-4">
               <CaseSearch onCaseSelect={handleCaseDetail} />
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
               <Button onClick={() => { setEditCase(null); setSelectedDate(undefined); setIsFormOpen(true); }} data-testid="button-add-case">
                 <Plus className="h-4 w-4 mr-2" />
-                新增案件
+                <span className="hidden sm:inline">新增案件</span>
               </Button>
               <Link href="/leaves">
                 <Button variant="outline" data-testid="button-leaves">
-                  <CalendarOff className="h-4 w-4 mr-2" />
-                  請假管理
+                  <CalendarOff className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">請假管理</span>
                 </Button>
               </Link>
               <Link href="/settings">

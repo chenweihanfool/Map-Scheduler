@@ -46,7 +46,7 @@ export function CaseSearch({ onCaseSelect }: CaseSearchProps) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <div className="relative w-full max-w-sm">
+        <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="搜尋案件（案號、地段、所有權人、測量員）"
