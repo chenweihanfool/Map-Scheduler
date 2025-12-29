@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Map, Calendar as CalendarIcon, List, Settings, User, CalendarOff } from "lucide-react";
+import { Plus, Map as MapIcon, Calendar as CalendarIcon, List, Settings, User, CalendarOff } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,9 @@ import { CaseFormDialog } from "@/components/case-form-dialog";
 import { CasesTable } from "@/components/cases-table";
 import { CalendarView } from "@/components/calendar-view";
 import { CalendarFilters } from "@/components/calendar-filters";
+import { CaseSearch } from "@/components/case-search";
+import { CaseDetailDialog } from "@/components/case-detail-dialog";
+import { CaseMap } from "@/components/case-map";
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
@@ -32,11 +35,15 @@ export default function Home() {
   const [editCase, setEditCase] = useState<SurveyCase | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [activeView, setActiveView] = useState<"calendar" | "list">("calendar");
+  const [activeView, setActiveView] = useState<"calendar" | "list" | "map">("calendar");
   
   const [surveyorFilter, setSurveyorFilter] = useState("");
   const [caseTypeFilter, setCaseTypeFilter] = useState("");
   const [showVacantOnly, setShowVacantOnly] = useState(false);
+  
+  const [detailCase, setDetailCase] = useState<SurveyCase | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [selectedMapCaseId, setSelectedMapCaseId] = useState<string | null>(null);
 
   const { data: cases = [], isLoading } = useQuery<SurveyCase[]>({
     queryKey: ["/api/cases"],
@@ -131,16 +138,29 @@ export default function Home() {
     setShowVacantOnly(false);
   };
 
+  const handleCaseDetail = (surveyCase: SurveyCase) => {
+    setDetailCase(surveyCase);
+    setIsDetailOpen(true);
+    setSelectedMapCaseId(surveyCase.id);
+  };
+
+  const handleEditFromDetail = (surveyCase: SurveyCase) => {
+    setEditCase(surveyCase);
+    setSelectedDate(undefined);
+    setIsFormOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-4 h-16">
             <div className="flex items-center gap-3">
-              <Map className="h-6 w-6 text-primary" />
+              <MapIcon className="h-6 w-6 text-primary" />
               <h1 className="text-xl font-semibold">測量案件排程系統</h1>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <CaseSearch onCaseSelect={handleCaseDetail} />
               <Button onClick={() => { setEditCase(null); setSelectedDate(undefined); setIsFormOpen(true); }} data-testid="button-add-case">
                 <Plus className="h-4 w-4 mr-2" />
                 新增案件
@@ -172,7 +192,7 @@ export default function Home() {
                   共 {filteredCases.length} 筆案件{filteredCases.length !== cases.length && ` (已篩選，總共 ${cases.length} 筆)`}
                 </CardDescription>
               </div>
-              <Tabs value={activeView} onValueChange={(v) => setActiveView(v as "calendar" | "list")}>
+              <Tabs value={activeView} onValueChange={(v) => setActiveView(v as "calendar" | "list" | "map")}>
                 <TabsList>
                   <TabsTrigger value="calendar" data-testid="tab-calendar">
                     <CalendarIcon className="h-4 w-4 mr-2" />
@@ -181,6 +201,10 @@ export default function Home() {
                   <TabsTrigger value="list" data-testid="tab-list">
                     <List className="h-4 w-4 mr-2" />
                     列表
+                  </TabsTrigger>
+                  <TabsTrigger value="map" data-testid="tab-map">
+                    <MapIcon className="h-4 w-4 mr-2" />
+                    地圖
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -199,7 +223,7 @@ export default function Home() {
               />
             </div>
             
-            {activeView === "calendar" ? (
+            {activeView === "calendar" && (
               <CalendarView
                 cases={filteredCases}
                 currentMonth={currentMonth}
@@ -210,11 +234,20 @@ export default function Home() {
                 caseTypeFilter={caseTypeFilter}
                 showVacantOnly={showVacantOnly}
               />
-            ) : (
+            )}
+            {activeView === "list" && (
               <CasesTable 
                 cases={filteredCases} 
                 isLoading={isLoading} 
                 onEdit={handleEdit}
+              />
+            )}
+            {activeView === "map" && (
+              <CaseMap
+                cases={filteredCases}
+                onCaseClick={handleCaseDetail}
+                selectedCaseId={selectedMapCaseId}
+                className="h-[600px]"
               />
             )}
           </CardContent>
@@ -290,6 +323,13 @@ export default function Home() {
         onOpenChange={handleCloseForm}
         editCase={editCase}
         defaultDate={selectedDate}
+      />
+
+      <CaseDetailDialog
+        open={isDetailOpen}
+        onOpenChange={setIsDetailOpen}
+        caseData={detailCase}
+        onEdit={handleEditFromDetail}
       />
     </div>
   );
