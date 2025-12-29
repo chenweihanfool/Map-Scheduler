@@ -50,6 +50,7 @@ const formSchema = z.object({
   caseType: z.string().min(1, "案件類型為必填"),
   section: z.string().min(1, "地段為必填"),
   lotNumber: z.string().min(1, "地號為必填"),
+  owner: z.string().optional(),
   surveyor: z.string().min(1, "測量員為必填"),
   surveyDate: z.string().min(1, "日期為必填"),
   scheduledTime: z.string().min(1, "排件時間為必填"),
@@ -265,6 +266,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
         caseType: defaultCaseType,
         section: parsed.section,
         lotNumber: parsed.lotNumber,
+        owner: editCase?.owner ?? "",
         surveyor: defaultSurveyor,
         surveyDate,
         scheduledTime,
@@ -477,6 +479,25 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
               />
             </div>
 
+            <FormField
+              control={form.control}
+              name="owner"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>所有權人</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="例: 王大明" 
+                      {...field}
+                      value={field.value || ""}
+                      data-testid="input-owner"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -571,20 +592,15 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>排件時間 <span className="text-destructive">*</span></FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-time">
-                        <SelectValue placeholder="選擇時間" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {TIME_SLOTS.map((time) => (
-                        <SelectItem key={time} value={time}>
-                          {time === "09:00" ? "上午 09:00" : "下午 14:00"}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Input 
+                      type="time"
+                      placeholder="例: 09:00" 
+                      {...field}
+                      data-testid="input-time"
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">常用時間：09:00（上午）、14:00（下午）</p>
                   <FormMessage />
                 </FormItem>
               )}
