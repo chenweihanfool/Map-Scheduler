@@ -7,7 +7,7 @@ import {
   type SurveyorLeave, type InsertSurveyorLeave
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, asc, and, gte } from "drizzle-orm";
+import { eq, desc, asc, and, gte, or, ilike } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -15,6 +15,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   
   getAllCases(): Promise<SurveyCase[]>;
+  searchCases(query: string): Promise<SurveyCase[]>;
   getCase(id: string): Promise<SurveyCase | undefined>;
   createCase(data: InsertSurveyCase): Promise<SurveyCase>;
   updateCase(id: string, data: UpdateSurveyCase): Promise<SurveyCase | undefined>;
@@ -56,6 +57,20 @@ export class DatabaseStorage implements IStorage {
 
   async getAllCases(): Promise<SurveyCase[]> {
     return db.select().from(surveyCases).orderBy(desc(surveyCases.createdAt));
+  }
+
+  async searchCases(query: string): Promise<SurveyCase[]> {
+    const searchPattern = `%${query}%`;
+    return db.select().from(surveyCases)
+      .where(
+        or(
+          ilike(surveyCases.caseNumber, searchPattern),
+          ilike(surveyCases.landParcel, searchPattern),
+          ilike(surveyCases.owner, searchPattern),
+          ilike(surveyCases.surveyor, searchPattern)
+        )
+      )
+      .orderBy(desc(surveyCases.createdAt));
   }
 
   async getCase(id: string): Promise<SurveyCase | undefined> {

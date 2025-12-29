@@ -27,6 +27,21 @@ export async function registerRoutes(
     }
   });
 
+  // Search survey cases
+  app.get("/api/cases/search", async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query || query.trim().length === 0) {
+        return res.json([]);
+      }
+      const cases = await storage.searchCases(query.trim());
+      res.json(cases);
+    } catch (error) {
+      console.error("Error searching cases:", error);
+      res.status(500).json({ error: "Failed to search cases" });
+    }
+  });
+
   // Get single survey case
   app.get("/api/cases/:id", async (req, res) => {
     try {
