@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import {
 import {
   Popover,
   PopoverContent,
-  PopoverTrigger,
+  PopoverAnchor,
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import type { SurveyCase } from "@shared/schema";
@@ -25,6 +25,7 @@ interface CaseSearchProps {
 export function CaseSearch({ onCaseSelect }: CaseSearchProps) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: searchResults = [], isLoading } = useQuery<SurveyCase[]>({
     queryKey: ["/api/cases/search", searchQuery],
@@ -45,22 +46,33 @@ export function CaseSearch({ onCaseSelect }: CaseSearchProps) {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+      <PopoverAnchor asChild>
         <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
+            ref={inputRef}
             placeholder="搜尋案件（案號、地段、所有權人、測量員）"
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
               if (e.target.value.length >= 2) {
                 setOpen(true);
+              } else {
+                setOpen(false);
               }
             }}
             onFocus={() => {
               if (searchQuery.length >= 2) {
                 setOpen(true);
               }
+            }}
+            onBlur={(e) => {
+              // Delay closing to allow click on results
+              setTimeout(() => {
+                if (!e.relatedTarget?.closest('[data-radix-popper-content-wrapper]')) {
+                  setOpen(false);
+                }
+              }, 150);
             }}
             className="pl-9 pr-8"
             data-testid="input-case-search"
@@ -70,9 +82,12 @@ export function CaseSearch({ onCaseSelect }: CaseSearchProps) {
               variant="ghost"
               size="icon"
               className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
-              onClick={() => {
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 setSearchQuery("");
                 setOpen(false);
+                inputRef.current?.focus();
               }}
               data-testid="button-clear-search"
             >
@@ -80,8 +95,12 @@ export function CaseSearch({ onCaseSelect }: CaseSearchProps) {
             </Button>
           )}
         </div>
-      </PopoverTrigger>
-      <PopoverContent className="w-[350px] p-0" align="start">
+      </PopoverAnchor>
+      <PopoverContent 
+        className="w-[350px] p-0" 
+        align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <Command>
           <CommandList>
             {isLoading && (
