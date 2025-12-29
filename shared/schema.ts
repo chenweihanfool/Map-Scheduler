@@ -42,6 +42,7 @@ export const surveyCases = pgTable("survey_cases", {
   caseNumber: text("case_number").notNull(), // 案號
   caseType: text("case_type").notNull().default("鑑界"), // 案件類型
   landParcel: text("land_parcel").notNull(), // 地段地號
+  owner: text("owner"), // 所有權人
   surveyor: text("surveyor").notNull(), // 測量員
   surveyDate: text("survey_date").notNull(), // 日期 (YYYY-MM-DD format)
   scheduledTime: text("scheduled_time").notNull(), // 排件時間
