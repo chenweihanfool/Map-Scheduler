@@ -8,7 +8,8 @@ import {
   updateSurveyorSchema,
   updateSettingsSchema,
   insertSurveyorLeaveSchema,
-  CASE_TYPES
+  CASE_TYPES,
+  type CoordinateStatus
 } from "@shared/schema";
 import { processCoordinateLookup, lookupCoordinates } from "./coordinate-service";
 
@@ -81,7 +82,7 @@ export async function registerRoutes(
       const surveyCase = await storage.createCase(caseDataWithCoords);
       
       // Update coordinate status based on lookup result
-      const coordinateStatus = coordinates ? "success" : "not_found";
+      const coordinateStatus: CoordinateStatus = coordinates ? "success" : "not_found";
       const coordinateSource = coordinates?.source ?? null;
       
       await storage.updateCaseCoordinates(

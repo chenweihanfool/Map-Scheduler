@@ -36,6 +36,17 @@ export const CASE_TYPES = [
 
 export type CaseType = typeof CASE_TYPES[number];
 
+// Coordinate status options (座標狀態)
+export const COORDINATE_STATUSES = [
+  "pending",     // 等待查詢
+  "processing",  // 查詢中
+  "success",     // 查詢成功
+  "failed",      // 查詢失敗
+  "not_found",   // 座標不存在（案件仍可儲存）
+] as const;
+
+export type CoordinateStatus = typeof COORDINATE_STATUSES[number];
+
 // Survey Case table for scheduling land survey appointments
 export const surveyCases = pgTable("survey_cases", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

@@ -4,7 +4,8 @@ import {
   type SurveyCase, type InsertSurveyCase, type UpdateSurveyCase,
   type Surveyor, type InsertSurveyor, type UpdateSurveyor,
   type SystemSettings, type UpdateSettings,
-  type SurveyorLeave, type InsertSurveyorLeave
+  type SurveyorLeave, type InsertSurveyorLeave,
+  type CoordinateStatus
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, and, gte, or, ilike } from "drizzle-orm";
@@ -20,7 +21,7 @@ export interface IStorage {
   createCase(data: InsertSurveyCase): Promise<SurveyCase>;
   updateCase(id: string, data: UpdateSurveyCase): Promise<SurveyCase | undefined>;
   deleteCase(id: string): Promise<boolean>;
-  updateCaseCoordinates(id: string, longitude: number | null, latitude: number | null, status: string, source?: string): Promise<SurveyCase | undefined>;
+  updateCaseCoordinates(id: string, longitude: number | null, latitude: number | null, status: CoordinateStatus, source?: string): Promise<SurveyCase | undefined>;
 
   getAllSurveyors(): Promise<Surveyor[]>;
   getSurveyor(id: string): Promise<Surveyor | undefined>;
@@ -104,7 +105,7 @@ export class DatabaseStorage implements IStorage {
     id: string, 
     longitude: number | null, 
     latitude: number | null, 
-    status: string,
+    status: CoordinateStatus,
     source?: string
   ): Promise<SurveyCase | undefined> {
     const [surveyCase] = await db
