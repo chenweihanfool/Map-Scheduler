@@ -74,7 +74,7 @@ const LAND_SECTIONS = [
     "南山段", "順天段"
   ]},
   { township: "通霄鎮", sections: [
-    "白沙屯段", "內湖島段", "新埔段", "北勢窩段", "烏眉坑段", "楓樹窩段", "內湖段",
+    "白沙屯段", "內湖島段", "新埔段", "上坪段", "北勢窩段", "烏眉坑段", "楓樹窩段", "內湖段",
     "圳頭段", "北勢段", "梅樹腳段", "土城段", "南和段", "福興段", "大坪頂段",
     "五里牌段隘口寮小段", "五里牌段五里牌小段", "五里牌段羊寮小段", "五里牌段五福小段",
     "通東段", "通西段", "通南段", "通北段", "竹林段", "平元段", "海濱段", "南華段",
@@ -303,6 +303,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
       const { section, lotNumber, ...rest } = data;
       const landParcel = `${section}${lotNumber}`;
       const response = await apiRequest("POST", "/api/cases", { ...rest, landParcel });
+      const result = await response.json();
       
       const selectedSurveyor = surveyorsList.find(s => s.name === data.surveyor);
       if (selectedSurveyor && selectedSurveyor.businessAttribute === "複丈組") {
@@ -319,17 +320,26 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
         }
       }
       
-      return response;
+      return result as { coordinateWarning?: string };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
       queryClient.invalidateQueries({ queryKey: ["/api/surveyors"] });
       queryClient.invalidateQueries({ queryKey: ["/api/surveyors/next/suggested"] });
       queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
-      toast({
-        title: "案件已新增",
-        description: "測量案件已成功建立，系統將自動查詢座標資訊",
-      });
+      
+      if (data.coordinateWarning) {
+        toast({
+          title: "案件已新增（無座標）",
+          description: data.coordinateWarning,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "案件已新增",
+          description: "測量案件已成功建立，座標已自動取得",
+        });
+      }
       form.reset();
       onOpenChange(false);
     },

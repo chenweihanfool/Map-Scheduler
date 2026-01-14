@@ -48,7 +48,7 @@ export const surveyCases = pgTable("survey_cases", {
   scheduledTime: text("scheduled_time").notNull(), // 排件時間
   longitude: doublePrecision("longitude"), // 經度
   latitude: doublePrecision("latitude"), // 緯度
-  coordinateStatus: text("coordinate_status").default("pending"), // pending, success, failed, processing
+  coordinateStatus: text("coordinate_status").default("pending"), // pending, processing, success, failed, not_found
   coordinateSource: text("coordinate_source"), // NLSC or Miaoli GIS
   notes: text("notes"), // 備註
   createdAt: timestamp("created_at").defaultNow(),

@@ -109,6 +109,7 @@ const MIAOLI_SECTIONS: Record<string, { office: string; sect: string }> = {
   "北梅段": { office: "KC", sect: "0398" },
   "中山段": { office: "KC", sect: "1104" },
   "五南段": { office: "KC", sect: "1105" },
+  "上坪段": { office: "KC", sect: "0326" },
   
   // 苗栗市 (K01) - Office: KA (苗栗地政事務所)
   "嘉盛段": { office: "KA", sect: "0100" },

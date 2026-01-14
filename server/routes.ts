@@ -67,41 +67,38 @@ export async function registerRoutes(
         });
       }
 
-      // Check coordinates first before saving
+      // Try to get coordinates, but allow case creation even without coordinates
       const landParcel = validationResult.data.landParcel;
       const coordinates = await lookupCoordinates(landParcel);
       
-      if (!coordinates) {
-        return res.status(400).json({ 
-          error: "coordinate_not_found",
-          message: `無法取得地號座標：${landParcel}。已嘗試 NLSC 及苗栗縣 GIS，請確認地段地號是否正確。`
-        });
-      }
-
-      // Add coordinates to the case data before saving
+      // Add coordinates to the case data before saving (null if not found)
       const caseDataWithCoords = {
         ...validationResult.data,
-        longitude: coordinates.longitude,
-        latitude: coordinates.latitude,
+        longitude: coordinates?.longitude ?? null,
+        latitude: coordinates?.latitude ?? null,
       };
 
       const surveyCase = await storage.createCase(caseDataWithCoords);
       
-      // Update coordinate status to success
+      // Update coordinate status based on lookup result
+      const coordinateStatus = coordinates ? "success" : "not_found";
+      const coordinateSource = coordinates?.source ?? null;
+      
       await storage.updateCaseCoordinates(
         surveyCase.id,
-        coordinates.longitude,
-        coordinates.latitude,
-        "success",
-        coordinates.source
+        coordinates?.longitude ?? null,
+        coordinates?.latitude ?? null,
+        coordinateStatus,
+        coordinateSource ?? undefined
       );
 
       res.status(201).json({
         ...surveyCase,
-        longitude: coordinates.longitude,
-        latitude: coordinates.latitude,
-        coordinateStatus: "success",
-        coordinateSource: coordinates.source,
+        longitude: coordinates?.longitude ?? null,
+        latitude: coordinates?.latitude ?? null,
+        coordinateStatus,
+        coordinateSource,
+        coordinateWarning: coordinates ? undefined : `無法取得座標，案件已儲存但無法在地圖上顯示`,
       });
     } catch (error) {
       console.error("Error creating case:", error);
