@@ -156,17 +156,27 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
   };
 
   const parseLandParcel = (landParcel: string) => {
-    // Try to match format with "地號" suffix first (e.g., "苑東段184地號")
+    // Try to match format with "地號" suffix first (e.g., "苑裡鎮苑東段184地號")
     const matchWithSuffix = landParcel.match(/^(.+段)(\d+地號.*)$/);
     if (matchWithSuffix) {
       return { section: matchWithSuffix[1], lotNumber: matchWithSuffix[2] };
     }
-    // Try to match format without "地號" suffix (e.g., "苑裡鎮芎蕉坑段1")
+    // Try to match format without "地號" suffix (e.g., "苑裡鎮芎蕉坑段1", "通霄鎮上坪段100")
     const matchWithoutSuffix = landParcel.match(/^(.+段)(\d+.*)$/);
     if (matchWithoutSuffix) {
       return { section: matchWithoutSuffix[1], lotNumber: matchWithoutSuffix[2] };
     }
-    // Fallback: return the full string as section if no match
+    // Try to match township + section format (e.g., "通霄鎮上坪段")
+    const matchTownshipSection = landParcel.match(/^([\u4e00-\u9fa5]+[鎮鄉市區][\u4e00-\u9fa5]+段)(.*)$/);
+    if (matchTownshipSection) {
+      return { section: matchTownshipSection[1], lotNumber: matchTownshipSection[2] };
+    }
+    // Fallback: if it contains digits at end, try to split there
+    const fallbackMatch = landParcel.match(/^(.+?)(\d+.*)$/);
+    if (fallbackMatch && fallbackMatch[1].length > 0) {
+      return { section: fallbackMatch[1], lotNumber: fallbackMatch[2] };
+    }
+    // Final fallback: return the full string as section if no match
     return { section: landParcel, lotNumber: "" };
   };
 
@@ -389,7 +399,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold flex items-center gap-2">
             <MapPin className="h-5 w-5 text-primary" />
