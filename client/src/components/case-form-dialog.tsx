@@ -469,11 +469,6 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                               <option key={`${group.township}-${section}`} value={`${group.township}${section}`} />
                             ))
                           )}
-                          {LAND_SECTIONS.map((group) =>
-                            group.sections.map((section) => (
-                              <option key={section} value={section} />
-                            ))
-                          )}
                         </datalist>
                       </div>
                     </FormControl>
