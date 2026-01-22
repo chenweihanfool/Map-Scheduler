@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { zhTW } from "date-fns/locale";
@@ -11,6 +11,9 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import {
   Table,
@@ -97,9 +100,60 @@ function CoordinateStatusBadge({ status, longitude, latitude }: {
   );
 }
 
+type SortField = "caseNumber" | "surveyor" | "surveyDate" | null;
+type SortDirection = "asc" | "desc";
+
 export function CasesTable({ cases, isLoading, onEdit }: CasesTableProps) {
   const { toast } = useToast();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<SortField>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+      } else {
+        // Reset sorting
+        setSortField(null);
+        setSortDirection("asc");
+      }
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const sortedCases = useMemo(() => {
+    if (!sortField) return cases;
+    
+    return [...cases].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortField) {
+        case "caseNumber":
+          comparison = a.caseNumber.localeCompare(b.caseNumber, "zh-TW", { numeric: true });
+          break;
+        case "surveyor":
+          comparison = (a.surveyor || "").localeCompare(b.surveyor || "", "zh-TW");
+          break;
+        case "surveyDate":
+          comparison = a.surveyDate.localeCompare(b.surveyDate);
+          break;
+      }
+      
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+  }, [cases, sortField, sortDirection]);
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="h-3 w-3 ml-1" />;
+    }
+    return sortDirection === "asc" 
+      ? <ArrowUp className="h-3 w-3 ml-1" />
+      : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -168,18 +222,45 @@ export function CasesTable({ cases, isLoading, onEdit }: CasesTableProps) {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead className="font-semibold w-[100px]">案號</TableHead>
+              <TableHead 
+                className="font-semibold w-[100px] cursor-pointer hover:bg-muted/80 select-none"
+                onClick={() => handleSort("caseNumber")}
+                data-testid="header-sort-case-number"
+              >
+                <span className="flex items-center">
+                  案號
+                  <SortIcon field="caseNumber" />
+                </span>
+              </TableHead>
               <TableHead className="font-semibold w-[80px]">類型</TableHead>
               <TableHead className="font-semibold min-w-[180px]">地段地號</TableHead>
-              <TableHead className="font-semibold w-[100px]">測量員</TableHead>
-              <TableHead className="font-semibold w-[100px]">日期</TableHead>
+              <TableHead 
+                className="font-semibold w-[100px] cursor-pointer hover:bg-muted/80 select-none"
+                onClick={() => handleSort("surveyor")}
+                data-testid="header-sort-surveyor"
+              >
+                <span className="flex items-center">
+                  測量員
+                  <SortIcon field="surveyor" />
+                </span>
+              </TableHead>
+              <TableHead 
+                className="font-semibold w-[100px] cursor-pointer hover:bg-muted/80 select-none"
+                onClick={() => handleSort("surveyDate")}
+                data-testid="header-sort-date"
+              >
+                <span className="flex items-center">
+                  日期
+                  <SortIcon field="surveyDate" />
+                </span>
+              </TableHead>
               <TableHead className="font-semibold w-[80px]">時間</TableHead>
               <TableHead className="font-semibold w-[100px]">座標狀態</TableHead>
               <TableHead className="font-semibold w-[100px] text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {cases.map((surveyCase, index) => (
+            {sortedCases.map((surveyCase, index) => (
               <TableRow 
                 key={surveyCase.id} 
                 className={index % 2 === 0 ? "bg-background" : "bg-muted/30"}

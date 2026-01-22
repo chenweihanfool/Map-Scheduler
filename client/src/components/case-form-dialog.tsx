@@ -227,10 +227,13 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
 
   const isSurveyorOnLeave = !!(watchedSurveyor && leavesOnDate.some(l => l.surveyorName === watchedSurveyor));
   
-  const isTimeSlotFull = !!(watchedSurveyDate && watchedScheduledTime && 
+  // Check if the same surveyor already has a case at the same time slot
+  // Different surveyors CAN have cases in the same time slot
+  const isTimeSlotFull = !!(watchedSurveyDate && watchedScheduledTime && watchedSurveyor &&
     allCases.filter(c => 
       c.surveyDate === watchedSurveyDate && 
       c.scheduledTime === watchedScheduledTime &&
+      c.surveyor === watchedSurveyor &&
       (!isEditing || c.id !== editCase?.id)
     ).length > 0);
 
@@ -254,11 +257,12 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
     if (suggestedData) {
       setSuggestedSurveyor(suggestedData.surveyor);
       setAssignmentMode(suggestedData.mode);
-      if (!isEditing && suggestedData.surveyor) {
+      // Only set surveyor on initial load, not when date changes
+      if (!isEditing && suggestedData.surveyor && isInitialLoad) {
         form.setValue("surveyor", suggestedData.surveyor.name);
       }
     }
-  }, [suggestedData, isEditing]);
+  }, [suggestedData, isEditing, isInitialLoad]);
 
   useEffect(() => {
     if (open) {
@@ -273,10 +277,14 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
       let surveyDate = getDefaultSurveyDate();
       let scheduledTime = editCase?.scheduledTime ?? "";
       
-      if (!isEditing && allCases.length >= 0) {
+      // Only use suggested date/time if NOT editing AND no defaultDate is provided
+      if (!isEditing && !defaultDate && allCases.length >= 0) {
         const suggested = findNextAvailableDate(defaultCaseType, allCases);
         surveyDate = suggested.date;
         scheduledTime = suggested.timeSlot;
+      } else if (!isEditing && defaultDate && !scheduledTime) {
+        // When clicking a calendar day, default to morning slot
+        scheduledTime = "上午 09:00";
       }
       
       form.reset({
@@ -660,7 +668,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                     <p>所選測量員 ({watchedSurveyor}) 在該日期請假，請重新選擇</p>
                   )}
                   {isTimeSlotFull && (
-                    <p>所選時段 ({watchedScheduledTime}) 在該日期已滿，請重新選擇</p>
+                    <p>該測量員在此時段 ({watchedScheduledTime}) 已有案件，請選擇其他時段或測量員</p>
                   )}
                 </AlertDescription>
               </Alert>
