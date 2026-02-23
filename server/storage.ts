@@ -1,11 +1,13 @@
 import { 
-  users, surveyCases, surveyors, systemSettings, surveyorLeaves,
+  users, surveyCases, surveyors, systemSettings, surveyorLeaves, caseTypes,
   type User, type InsertUser,
   type SurveyCase, type InsertSurveyCase, type UpdateSurveyCase,
   type Surveyor, type InsertSurveyor, type UpdateSurveyor,
   type SystemSettings, type UpdateSettings,
   type SurveyorLeave, type InsertSurveyorLeave,
-  type CoordinateStatus
+  type CoordinateStatus,
+  type CaseTypeRecord, type InsertCaseType,
+  DEFAULT_CASE_TYPES
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, and, gte, or, ilike } from "drizzle-orm";
@@ -38,6 +40,12 @@ export interface IStorage {
   getLeavesBySurveyor(surveyorId: string): Promise<SurveyorLeave[]>;
   createLeave(data: InsertSurveyorLeave): Promise<SurveyorLeave>;
   deleteLeave(id: string): Promise<boolean>;
+
+  getAllCaseTypes(): Promise<CaseTypeRecord[]>;
+  createCaseType(data: InsertCaseType): Promise<CaseTypeRecord>;
+  updateCaseType(id: string, data: Partial<InsertCaseType>): Promise<CaseTypeRecord | undefined>;
+  deleteCaseType(id: string): Promise<boolean>;
+  initializeDefaultCaseTypes(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -218,6 +226,49 @@ export class DatabaseStorage implements IStorage {
   async deleteLeave(id: string): Promise<boolean> {
     const result = await db.delete(surveyorLeaves).where(eq(surveyorLeaves.id, id)).returning();
     return result.length > 0;
+  }
+
+  async getAllCaseTypes(): Promise<CaseTypeRecord[]> {
+    return db.select().from(caseTypes).orderBy(asc(caseTypes.sortOrder));
+  }
+
+  async createCaseType(data: InsertCaseType): Promise<CaseTypeRecord> {
+    const allTypes = await this.getAllCaseTypes();
+    const maxSortOrder = allTypes.length > 0
+      ? Math.max(...allTypes.map(t => t.sortOrder))
+      : -1;
+
+    const [caseType] = await db.insert(caseTypes).values({
+      ...data,
+      sortOrder: data.sortOrder ?? maxSortOrder + 1,
+    }).returning();
+    return caseType;
+  }
+
+  async updateCaseType(id: string, data: Partial<InsertCaseType>): Promise<CaseTypeRecord | undefined> {
+    const [caseType] = await db
+      .update(caseTypes)
+      .set(data)
+      .where(eq(caseTypes.id, id))
+      .returning();
+    return caseType || undefined;
+  }
+
+  async deleteCaseType(id: string): Promise<boolean> {
+    const result = await db.delete(caseTypes).where(eq(caseTypes.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async initializeDefaultCaseTypes(): Promise<void> {
+    const existing = await this.getAllCaseTypes();
+    if (existing.length === 0) {
+      for (let i = 0; i < DEFAULT_CASE_TYPES.length; i++) {
+        await db.insert(caseTypes).values({
+          name: DEFAULT_CASE_TYPES[i],
+          sortOrder: i,
+        }).onConflictDoNothing();
+      }
+    }
   }
 }
 

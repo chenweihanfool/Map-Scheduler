@@ -40,10 +40,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import { CASE_TYPES, type SurveyCase, type Surveyor, type SystemSettings, type SurveyorLeave } from "@shared/schema";
+import { CASE_TYPES, type SurveyCase, type Surveyor, type SystemSettings, type SurveyorLeave, type CaseTypeRecord } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Star } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const formSchema = z.object({
   caseNumber: z.string().min(1, "案號為必填"),
@@ -133,6 +134,12 @@ const findNextAvailableDate = (
   return { date: format(new Date(), "yyyy-MM-dd"), timeSlot: preferredSlots[0] };
 };
 
+interface SurveyorRecommendation {
+  surveyor: string;
+  score: number;
+  reasons: string[];
+}
+
 export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: CaseFormDialogProps) {
   const { toast } = useToast();
   const isEditing = !!editCase;
@@ -146,6 +153,11 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
 
   const { data: allCases = [] } = useQuery<SurveyCase[]>({
     queryKey: ["/api/cases"],
+    enabled: open,
+  });
+
+  const { data: dynamicCaseTypes = [] } = useQuery<CaseTypeRecord[]>({
+    queryKey: ["/api/case-types"],
     enabled: open,
   });
 
@@ -213,6 +225,28 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
   const watchedSurveyDate = form.watch("surveyDate");
   const watchedSurveyor = form.watch("surveyor");
   const watchedScheduledTime = form.watch("scheduledTime");
+  const watchedSection = form.watch("section");
+  const watchedLotNumber = form.watch("lotNumber");
+
+  const caseTypeOptions = dynamicCaseTypes.length > 0 
+    ? dynamicCaseTypes.map(t => t.name) 
+    : [...CASE_TYPES];
+
+  const { data: recommendationData } = useQuery<{ recommendations: SurveyorRecommendation[] }>({
+    queryKey: ["/api/cases/recommend-surveyor", watchedSection, watchedLotNumber],
+    queryFn: async () => {
+      if (!watchedSection) return { recommendations: [] };
+      const params = new URLSearchParams({ section: watchedSection });
+      if (watchedLotNumber) params.append("lotNumber", watchedLotNumber);
+      const res = await fetch(`/api/cases/recommend-surveyor?${params}`);
+      if (!res.ok) return { recommendations: [] };
+      return res.json();
+    },
+    enabled: open && !!watchedSection,
+    staleTime: 5000,
+  });
+
+  const recommendations = recommendationData?.recommendations ?? [];
 
   const { data: leavesOnDate = [] } = useQuery<SurveyorLeave[]>({
     queryKey: ["/api/leaves/date", watchedSurveyDate],
@@ -273,7 +307,8 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
       
       const parsed = editCase?.landParcel ? parseLandParcel(editCase.landParcel) : { section: "", lotNumber: "" };
       
-      const defaultCaseType = editCase?.caseType ?? "鑑界";
+      const fallbackType = caseTypeOptions.length > 0 ? caseTypeOptions[0] : "鑑界";
+      const defaultCaseType = editCase?.caseType ?? fallbackType;
       let surveyDate = getDefaultSurveyDate();
       let scheduledTime = editCase?.scheduledTime ?? "";
       
@@ -455,7 +490,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {CASE_TYPES.map((type) => (
+                        {caseTypeOptions.map((type) => (
                           <SelectItem key={type} value={type}>{type}</SelectItem>
                         ))}
                       </SelectContent>
@@ -533,6 +568,35 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
               )}
             />
 
+            {recommendations.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-3 space-y-2" data-testid="recommendation-panel">
+                <div className="flex items-center gap-2 text-sm font-medium text-amber-800 dark:text-amber-300">
+                  <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
+                  智慧推薦承辦人
+                </div>
+                {recommendations.map((rec, idx) => (
+                  <div 
+                    key={rec.surveyor} 
+                    className="flex items-start gap-2 text-sm cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded p-1.5 -mx-1.5 transition-colors"
+                    onClick={() => form.setValue("surveyor", rec.surveyor)}
+                    data-testid={`recommendation-${idx}`}
+                  >
+                    <Badge variant={idx === 0 ? "default" : "outline"} className="shrink-0 mt-0.5">
+                      {idx === 0 ? "最佳" : `#${idx + 1}`}
+                    </Badge>
+                    <div className="min-w-0">
+                      <span className="font-medium">{rec.surveyor}</span>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {rec.reasons.slice(0, 2).map((reason, i) => (
+                          <div key={i}>• {reason}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -555,19 +619,25 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {surveyorsList.map((s) => (
-                          <SelectItem key={s.id} value={s.name}>
-                            <div className="flex items-center gap-2">
-                              {s.name}
-                              {s.businessAttribute !== "複丈組" && (
-                                <span className="text-xs text-muted-foreground">({s.businessAttribute})</span>
-                              )}
-                              {suggestedSurveyor?.id === s.id && (
-                                <Sparkles className="h-3 w-3 text-primary" />
-                              )}
-                            </div>
-                          </SelectItem>
-                        ))}
+                        {surveyorsList.map((s) => {
+                          const rec = recommendations.find(r => r.surveyor === s.name);
+                          return (
+                            <SelectItem key={s.id} value={s.name}>
+                              <div className="flex items-center gap-2">
+                                {rec && (
+                                  <Star className="h-3 w-3 fill-amber-500 text-amber-500 shrink-0" />
+                                )}
+                                {s.name}
+                                {s.businessAttribute !== "複丈組" && (
+                                  <span className="text-xs text-muted-foreground">({s.businessAttribute})</span>
+                                )}
+                                {suggestedSurveyor?.id === s.id && !rec && (
+                                  <Sparkles className="h-3 w-3 text-primary" />
+                                )}
+                              </div>
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                     {!isEditing && suggestedData && !suggestedData.surveyor && (

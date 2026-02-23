@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
-import { ArrowLeft, Settings as SettingsIcon } from "lucide-react";
+import { ArrowLeft, Settings as SettingsIcon, Plus, Trash2, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { CASE_TYPES, type SystemSettings } from "@shared/schema";
+import { CASE_TYPES, type SystemSettings, type CaseTypeRecord } from "@shared/schema";
 import { useState, useEffect } from "react";
 
 export default function SettingsPage() {
@@ -22,17 +22,35 @@ export default function SettingsPage() {
 
   const [assignmentMode, setAssignmentMode] = useState<string>("sequential");
   const [weights, setWeights] = useState<Record<string, number>>({});
+  const [newCaseTypeName, setNewCaseTypeName] = useState("");
+
+  const { data: caseTypesList = [], isLoading: caseTypesLoading } = useQuery<CaseTypeRecord[]>({
+    queryKey: ["/api/case-types"],
+  });
+
+  const activeCaseTypes = caseTypesList.length > 0 
+    ? caseTypesList.map(t => t.name) 
+    : [...CASE_TYPES];
 
   useEffect(() => {
     if (settings) {
       setAssignmentMode(settings.assignmentMode);
-      const initialWeights: Record<string, number> = {};
-      CASE_TYPES.forEach(type => {
-        initialWeights[type] = (settings.caseTypeWeights as Record<string, number>)?.[type] ?? 1;
-      });
-      setWeights(initialWeights);
     }
   }, [settings]);
+
+  useEffect(() => {
+    if (settings) {
+      setWeights(prev => {
+        const merged: Record<string, number> = { ...prev };
+        activeCaseTypes.forEach(type => {
+          if (!(type in merged)) {
+            merged[type] = (settings.caseTypeWeights as Record<string, number>)?.[type] ?? 1;
+          }
+        });
+        return merged;
+      });
+    }
+  }, [settings, caseTypesList]);
 
   const updateMutation = useMutation({
     mutationFn: async (data: { assignmentMode?: string; caseTypeWeights?: Record<string, number> }) => {
@@ -53,6 +71,43 @@ export default function SettingsPage() {
       });
     },
   });
+
+  const addCaseTypeMutation = useMutation({
+    mutationFn: async (name: string) => {
+      return apiRequest("POST", "/api/case-types", { name });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/case-types"] });
+      setNewCaseTypeName("");
+      toast({ title: "案件類型已新增" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "新增失敗", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteCaseTypeMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/case-types/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/case-types"] });
+      toast({ title: "案件類型已刪除" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "刪除失敗", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleAddCaseType = () => {
+    const name = newCaseTypeName.trim();
+    if (!name) return;
+    if (activeCaseTypes.includes(name)) {
+      toast({ title: "名稱重複", description: "此案件類型已存在", variant: "destructive" });
+      return;
+    }
+    addCaseTypeMutation.mutate(name);
+  };
 
   const handleSave = () => {
     updateMutation.mutate({
@@ -149,7 +204,7 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {CASE_TYPES.map((caseType) => (
+                  {activeCaseTypes.map((caseType) => (
                     <div key={caseType} className="flex items-center gap-3">
                       <Label htmlFor={`weight-${caseType}`} className="min-w-[80px]">
                         {caseType}
@@ -170,6 +225,71 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
           )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>案件類型管理</CardTitle>
+              <CardDescription>
+                管理系統中可用的案件類型。新增或移除案件類型會影響新增案件時的選項。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="輸入新案件類型名稱"
+                  value={newCaseTypeName}
+                  onChange={(e) => setNewCaseTypeName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddCaseType()}
+                  className="flex-1"
+                  data-testid="input-new-case-type"
+                />
+                <Button 
+                  onClick={handleAddCaseType} 
+                  disabled={addCaseTypeMutation.isPending || !newCaseTypeName.trim()}
+                  size="sm"
+                  data-testid="button-add-case-type"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  新增
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {caseTypesList.length > 0 ? (
+                  caseTypesList.map((ct) => (
+                    <div 
+                      key={ct.id} 
+                      className="flex items-center justify-between p-3 rounded-lg border"
+                      data-testid={`case-type-item-${ct.id}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <GripVertical className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">{ct.name}</span>
+                        {ct.isDefault && (
+                          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">預設</span>
+                        )}
+                      </div>
+                      {!ct.isDefault && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => deleteCaseTypeMutation.mutate(ct.id)}
+                          disabled={deleteCaseTypeMutation.isPending}
+                          data-testid={`button-delete-case-type-${ct.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-muted-foreground p-3 text-center border rounded-lg">
+                    {caseTypesLoading ? "載入中..." : "尚未設定自訂類型，使用預設類型（鑑界、複丈、建物測量、法院囑託）"}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="flex justify-between gap-4">
             <Link href="/surveyors">

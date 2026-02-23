@@ -8,6 +8,7 @@ import {
   updateSurveyorSchema,
   updateSettingsSchema,
   insertSurveyorLeaveSchema,
+  insertCaseTypeSchema,
   CASE_TYPES,
   type CoordinateStatus
 } from "@shared/schema";
@@ -405,6 +406,171 @@ export async function registerRoutes(
       console.error("Error deleting leave:", error);
       res.status(500).json({ error: "Failed to delete leave" });
     }
+  });
+
+  // ===== Case Types API =====
+
+  app.get("/api/case-types", async (req, res) => {
+    try {
+      const types = await storage.getAllCaseTypes();
+      res.json(types);
+    } catch (error) {
+      console.error("Error fetching case types:", error);
+      res.status(500).json({ error: "Failed to fetch case types" });
+    }
+  });
+
+  app.post("/api/case-types", async (req, res) => {
+    try {
+      const validationResult = insertCaseTypeSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({
+          error: "Validation failed",
+          details: validationResult.error.flatten()
+        });
+      }
+      const caseType = await storage.createCaseType(validationResult.data);
+      res.status(201).json(caseType);
+    } catch (error) {
+      console.error("Error creating case type:", error);
+      res.status(500).json({ error: "Failed to create case type" });
+    }
+  });
+
+  app.patch("/api/case-types/:id", async (req, res) => {
+    try {
+      const caseType = await storage.updateCaseType(req.params.id, req.body);
+      if (!caseType) {
+        return res.status(404).json({ error: "Case type not found" });
+      }
+      res.json(caseType);
+    } catch (error) {
+      console.error("Error updating case type:", error);
+      res.status(500).json({ error: "Failed to update case type" });
+    }
+  });
+
+  app.delete("/api/case-types/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteCaseType(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Case type not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting case type:", error);
+      res.status(500).json({ error: "Failed to delete case type" });
+    }
+  });
+
+  // ===== Smart Surveyor Recommendation API =====
+  
+  app.get("/api/cases/recommend-surveyor", async (req, res) => {
+    try {
+      const section = req.query.section as string;
+      const lotNumber = req.query.lotNumber as string;
+      
+      if (!section) {
+        return res.json({ recommendations: [] });
+      }
+
+      const allCases = await storage.getAllCases();
+      
+      const extractSection = (landParcel: string): string => {
+        const match = landParcel.match(/^(.+段)/);
+        return match ? match[1] : landParcel;
+      };
+
+      const extractLotNumbers = (landParcel: string): number[] => {
+        const sectionMatch = landParcel.match(/^.+段(.*)$/);
+        if (!sectionMatch) return [];
+        const lotPart = sectionMatch[1];
+        const numbers: number[] = [];
+        const matches = lotPart.match(/\d+/g);
+        if (matches) {
+          matches.forEach(m => numbers.push(parseInt(m)));
+        }
+        return numbers;
+      };
+
+      const inputLotNumbers: number[] = [];
+      if (lotNumber) {
+        const matches = lotNumber.match(/\d+/g);
+        if (matches) {
+          matches.forEach(m => inputLotNumbers.push(parseInt(m)));
+        }
+      }
+
+      const surveyorScores: Record<string, { score: number; reasons: string[] }> = {};
+
+      for (const c of allCases) {
+        const caseSection = extractSection(c.landParcel);
+        
+        if (caseSection === section) {
+          if (!surveyorScores[c.surveyor]) {
+            surveyorScores[c.surveyor] = { score: 0, reasons: [] };
+          }
+          
+          const caseLotNumbers = extractLotNumbers(c.landParcel);
+          
+          let exactMatch = false;
+          let nearbyMatch = false;
+          
+          if (inputLotNumbers.length > 0 && caseLotNumbers.length > 0) {
+            for (const inputLot of inputLotNumbers) {
+              for (const caseLot of caseLotNumbers) {
+                if (inputLot === caseLot) {
+                  exactMatch = true;
+                } else if (Math.abs(inputLot - caseLot) <= 10) {
+                  nearbyMatch = true;
+                }
+              }
+            }
+          }
+
+          if (exactMatch) {
+            surveyorScores[c.surveyor].score += 10;
+            const lotStr = caseLotNumbers.join('、');
+            const reason = `曾辦理相同地號 ${caseSection}${lotStr}`;
+            if (!surveyorScores[c.surveyor].reasons.includes(reason)) {
+              surveyorScores[c.surveyor].reasons.push(reason);
+            }
+          } else if (nearbyMatch) {
+            surveyorScores[c.surveyor].score += 5;
+            const lotStr = caseLotNumbers.join('、');
+            const reason = `曾辦理鄰近地號 ${caseSection}${lotStr}`;
+            if (!surveyorScores[c.surveyor].reasons.includes(reason)) {
+              surveyorScores[c.surveyor].reasons.push(reason);
+            }
+          } else {
+            surveyorScores[c.surveyor].score += 1;
+            const existingGenericReason = surveyorScores[c.surveyor].reasons.find(r => r.startsWith('曾辦理同段'));
+            if (!existingGenericReason) {
+              surveyorScores[c.surveyor].reasons.push(`曾辦理同段 ${caseSection} 案件`);
+            }
+          }
+        }
+      }
+
+      const recommendations = Object.entries(surveyorScores)
+        .map(([surveyor, data]) => ({
+          surveyor,
+          score: data.score,
+          reasons: data.reasons,
+        }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+
+      res.json({ recommendations });
+    } catch (error) {
+      console.error("Error getting surveyor recommendation:", error);
+      res.status(500).json({ error: "Failed to get recommendation" });
+    }
+  });
+
+  // Initialize default case types on startup
+  storage.initializeDefaultCaseTypes().catch(err => {
+    console.error("Failed to initialize default case types:", err);
   });
 
   return httpServer;

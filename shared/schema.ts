@@ -21,8 +21,8 @@ export const ASSIGNMENT_MODES = [
 
 export type AssignmentMode = typeof ASSIGNMENT_MODES[number];
 
-// Case type options (案件類型)
-export const CASE_TYPES = [
+// Default case type options (案件類型) - used as fallback
+export const DEFAULT_CASE_TYPES = [
   "鑑界",
   "再鑑界", 
   "法院",
@@ -34,7 +34,9 @@ export const CASE_TYPES = [
   "其他",
 ] as const;
 
-export type CaseType = typeof CASE_TYPES[number];
+export const CASE_TYPES = DEFAULT_CASE_TYPES;
+
+export type CaseType = string;
 
 // Coordinate status options (座標狀態)
 export const COORDINATE_STATUSES = [
@@ -149,3 +151,19 @@ export const insertSurveyorLeaveSchema = createInsertSchema(surveyorLeaves).omit
 
 export type InsertSurveyorLeave = z.infer<typeof insertSurveyorLeaveSchema>;
 export type SurveyorLeave = typeof surveyorLeaves.$inferSelect;
+
+// Custom case types table (自訂案件類型)
+export const caseTypes = pgTable("case_types", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCaseTypeSchema = createInsertSchema(caseTypes).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertCaseType = z.infer<typeof insertCaseTypeSchema>;
+export type CaseTypeRecord = typeof caseTypes.$inferSelect;
