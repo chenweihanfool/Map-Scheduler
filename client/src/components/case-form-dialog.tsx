@@ -43,7 +43,7 @@ import { cn } from "@/lib/utils";
 import { CASE_TYPES, type SurveyCase, type Surveyor, type SystemSettings, type SurveyorLeave, type CaseTypeRecord } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Star } from "lucide-react";
+import { AlertTriangle, Star, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const formSchema = z.object({
@@ -576,9 +576,30 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
 
             {recommendations.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-3 space-y-2" data-testid="recommendation-panel">
-                <div className="flex items-center gap-2 text-sm font-medium text-amber-800 dark:text-amber-300">
-                  <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
-                  智慧推薦承辦人
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-medium text-amber-800 dark:text-amber-300">
+                    <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
+                    智慧推薦承辦人
+                  </div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button type="button" className="text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200">
+                          <Info className="h-4 w-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="max-w-[280px] text-xs leading-relaxed">
+                        <p className="font-medium mb-1">推薦邏輯說明：</p>
+                        <p>• 相同地號：+10 分</p>
+                        <p>• 鄰近地號（±10號）：+5 分</p>
+                        <p>• 需同時填寫地段與地號才會觸發</p>
+                        <p className="mt-1 text-muted-foreground">無匹配時回退至順序/積分模式</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <div className="text-xs text-amber-700/70 dark:text-amber-400/60">
+                  依相同地號(+10分)及鄰近±10號(+5分)歷史紀錄推薦
                 </div>
                 {recommendations.map((rec, idx) => (
                   <div 
@@ -591,9 +612,12 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                       {idx === 0 ? "最佳" : `#${idx + 1}`}
                     </Badge>
                     <div className="min-w-0">
-                      <span className="font-medium">{rec.surveyor}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{rec.surveyor}</span>
+                        <span className="text-xs text-amber-600 dark:text-amber-400">{rec.score}分</span>
+                      </div>
                       <div className="text-xs text-muted-foreground mt-0.5">
-                        {rec.reasons.slice(0, 2).map((reason, i) => (
+                        {rec.reasons.slice(0, 3).map((reason, i) => (
                           <div key={i}>• {reason}</div>
                         ))}
                       </div>
