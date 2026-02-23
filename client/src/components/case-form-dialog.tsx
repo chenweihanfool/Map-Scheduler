@@ -287,16 +287,23 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
     staleTime: 0,
   });
 
+  const hasSmartRecommendations = recommendations.length > 0;
+
   useEffect(() => {
     if (suggestedData) {
       setSuggestedSurveyor(suggestedData.surveyor);
       setAssignmentMode(suggestedData.mode);
-      // Only set surveyor on initial load, not when date changes
-      if (!isEditing && suggestedData.surveyor && isInitialLoad) {
+      if (!isEditing && suggestedData.surveyor && isInitialLoad && !hasSmartRecommendations) {
         form.setValue("surveyor", suggestedData.surveyor.name);
       }
     }
-  }, [suggestedData, isEditing, isInitialLoad]);
+  }, [suggestedData, isEditing, isInitialLoad, hasSmartRecommendations]);
+
+  useEffect(() => {
+    if (!isEditing && hasSmartRecommendations && recommendations[0]) {
+      form.setValue("surveyor", recommendations[0].surveyor);
+    }
+  }, [hasSmartRecommendations, recommendations, isEditing]);
 
   useEffect(() => {
     if (open) {
@@ -605,7 +612,13 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                   <FormItem>
                     <FormLabel className="flex items-center gap-2">
                       測量員 <span className="text-destructive">*</span>
-                      {!isEditing && suggestedSurveyor && (
+                      {!isEditing && hasSmartRecommendations && (
+                        <Badge variant="outline" className="text-xs font-normal text-amber-700 border-amber-300 dark:text-amber-400 dark:border-amber-700">
+                          <Star className="h-3 w-3 mr-1 fill-amber-500 text-amber-500" />
+                          地段推薦
+                        </Badge>
+                      )}
+                      {!isEditing && !hasSmartRecommendations && suggestedSurveyor && (
                         <Badge variant="outline" className="text-xs font-normal">
                           <Sparkles className="h-3 w-3 mr-1" />
                           {assignmentMode === "sequential" ? "順序建議" : "積分建議"}
@@ -640,7 +653,17 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                         })}
                       </SelectContent>
                     </Select>
-                    {!isEditing && suggestedData && !suggestedData.surveyor && (
+                    {!isEditing && hasSmartRecommendations && (
+                      <p className="text-xs text-muted-foreground">
+                        依據地段歷史自動推薦，可手動變更
+                      </p>
+                    )}
+                    {!isEditing && !hasSmartRecommendations && suggestedSurveyor && (
+                      <p className="text-xs text-muted-foreground">
+                        無地段歷史，依{assignmentMode === "sequential" ? "順序" : "積分"}模式推薦
+                      </p>
+                    )}
+                    {!isEditing && !hasSmartRecommendations && suggestedData && !suggestedData.surveyor && (
                       <p className="text-xs text-muted-foreground">
                         當日所有複丈組測量員皆請假，請手動選擇
                       </p>
