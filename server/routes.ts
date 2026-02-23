@@ -50,7 +50,7 @@ export async function registerRoutes(
       const section = req.query.section as string;
       const lotNumber = req.query.lotNumber as string;
       
-      if (!section) {
+      if (!section || !lotNumber) {
         return res.json({ recommendations: [] });
       }
 
@@ -74,11 +74,13 @@ export async function registerRoutes(
       };
 
       const inputLotNumbers: number[] = [];
-      if (lotNumber) {
-        const matches = lotNumber.match(/\d+/g);
-        if (matches) {
-          matches.forEach(m => inputLotNumbers.push(parseInt(m)));
-        }
+      const lotMatches = lotNumber.match(/\d+/g);
+      if (lotMatches) {
+        lotMatches.forEach(m => inputLotNumbers.push(parseInt(m)));
+      }
+
+      if (inputLotNumbers.length === 0) {
+        return res.json({ recommendations: [] });
       }
 
       const surveyorScores: Record<string, { score: number; reasons: string[] }> = {};
@@ -87,25 +89,26 @@ export async function registerRoutes(
         const caseSection = extractSection(c.landParcel);
         
         if (caseSection === section) {
-          if (!surveyorScores[c.surveyor]) {
-            surveyorScores[c.surveyor] = { score: 0, reasons: [] };
-          }
-          
           const caseLotNumbers = extractLotNumbers(c.landParcel);
-          
+          if (caseLotNumbers.length === 0) continue;
+
           let exactMatch = false;
           let nearbyMatch = false;
           
-          if (inputLotNumbers.length > 0 && caseLotNumbers.length > 0) {
-            for (const inputLot of inputLotNumbers) {
-              for (const caseLot of caseLotNumbers) {
-                if (inputLot === caseLot) {
-                  exactMatch = true;
-                } else if (Math.abs(inputLot - caseLot) <= 10) {
-                  nearbyMatch = true;
-                }
+          for (const inputLot of inputLotNumbers) {
+            for (const caseLot of caseLotNumbers) {
+              if (inputLot === caseLot) {
+                exactMatch = true;
+              } else if (Math.abs(inputLot - caseLot) <= 10) {
+                nearbyMatch = true;
               }
             }
+          }
+
+          if (!exactMatch && !nearbyMatch) continue;
+
+          if (!surveyorScores[c.surveyor]) {
+            surveyorScores[c.surveyor] = { score: 0, reasons: [] };
           }
 
           if (exactMatch) {
@@ -115,18 +118,12 @@ export async function registerRoutes(
             if (!surveyorScores[c.surveyor].reasons.includes(reason)) {
               surveyorScores[c.surveyor].reasons.push(reason);
             }
-          } else if (nearbyMatch) {
+          } else {
             surveyorScores[c.surveyor].score += 5;
             const lotStr = caseLotNumbers.join('、');
-            const reason = `曾辦理鄰近地號 ${caseSection}${lotStr}`;
+            const reason = `曾辦理鄰近地號(±10) ${caseSection}${lotStr}`;
             if (!surveyorScores[c.surveyor].reasons.includes(reason)) {
               surveyorScores[c.surveyor].reasons.push(reason);
-            }
-          } else {
-            surveyorScores[c.surveyor].score += 1;
-            const existingGenericReason = surveyorScores[c.surveyor].reasons.find(r => r.startsWith('曾辦理同段'));
-            if (!existingGenericReason) {
-              surveyorScores[c.surveyor].reasons.push(`曾辦理同段 ${caseSection} 案件`);
             }
           }
         }

@@ -235,14 +235,13 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
   const { data: recommendationData } = useQuery<{ recommendations: SurveyorRecommendation[] }>({
     queryKey: ["/api/cases/recommend-surveyor", watchedSection, watchedLotNumber],
     queryFn: async () => {
-      if (!watchedSection) return { recommendations: [] };
-      const params = new URLSearchParams({ section: watchedSection });
-      if (watchedLotNumber) params.append("lotNumber", watchedLotNumber);
+      if (!watchedSection || !watchedLotNumber) return { recommendations: [] };
+      const params = new URLSearchParams({ section: watchedSection, lotNumber: watchedLotNumber });
       const res = await fetch(`/api/cases/recommend-surveyor?${params}`);
       if (!res.ok) return { recommendations: [] };
       return res.json();
     },
-    enabled: open && !!watchedSection,
+    enabled: open && !!watchedSection && !!watchedLotNumber,
     staleTime: 5000,
   });
 
