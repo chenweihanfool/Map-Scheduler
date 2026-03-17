@@ -366,8 +366,8 @@ export function CalendarView({
               Object.entries(detailGrouped).map(([surveyor, surveyorCases]) => (
                 <div key={surveyor} className="space-y-2">
                   <div className={cn(
-                    "flex items-center gap-2 px-2 py-1 rounded-md text-sm font-medium",
-                    surveyorColors[surveyor]?.split(" ").slice(0, 3).join(" ") || "bg-gray-100 dark:bg-gray-800"
+                    "flex items-center gap-2 px-2 py-1 rounded-md text-sm font-semibold",
+                    surveyorColors[surveyor]?.split(" ").slice(0, 4).join(" ") || "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200"
                   )}>
                     <span>{surveyor}</span>
                     <span className="text-xs font-normal opacity-70">（{surveyorCases.length} 件）</span>
