@@ -129,6 +129,7 @@ export default function LeavesPage() {
     onError: (error: Error & { conflicts?: ConflictCase[] }) => {
       if (error.conflicts && error.conflicts.length > 0) {
         setPendingConflicts(error.conflicts);
+        setDialogOpen(false);
         setConflictDialogOpen(true);
       } else {
         toast({ title: "登記失敗", description: error.message, variant: "destructive" });
@@ -410,7 +411,7 @@ export default function LeavesPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setDialogOpen(true)}>返回修改</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleForceSubmit}
               className="bg-amber-600 hover:bg-amber-700 text-white"
