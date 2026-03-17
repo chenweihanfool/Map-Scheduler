@@ -18,10 +18,18 @@ import { CaseMap } from "@/components/case-map";
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.3.0";
+const APP_VERSION = "v2.4.0";
 const RELEASE_DATE = "2026-03-17";
 
 const CHANGELOG = [
+  {
+    version: "v2.4.0",
+    date: "2026-03-17",
+    items: [
+      "日曆新增「當日放大視窗」：點擊日期數字即可展開查看當日全部案件（依承辦人分組），並可直接編輯或新增",
+      "修正請假衝突訊息框被登記視窗遮擋的問題，偵測到衝突時自動切換至確認視窗",
+    ],
+  },
   {
     version: "v2.3.0",
     date: "2026-03-17",
