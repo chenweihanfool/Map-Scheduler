@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Map as MapIcon, Calendar as CalendarIcon, List, Settings, User, CalendarOff } from "lucide-react";
+import { Plus, Map as MapIcon, Calendar as CalendarIcon, List, Settings, User, CalendarOff, Sparkles } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CaseFormDialog } from "@/components/case-form-dialog";
 import { CasesTable } from "@/components/cases-table";
@@ -16,6 +17,41 @@ import { CaseDetailDialog } from "@/components/case-detail-dialog";
 import { CaseMap } from "@/components/case-map";
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
+
+const APP_VERSION = "v2.3.0";
+const RELEASE_DATE = "2026-03-17";
+
+const CHANGELOG = [
+  {
+    version: "v2.3.0",
+    date: "2026-03-17",
+    items: [
+      "新增「淡化過去案件」切換開關，可在日曆、清單、地圖三種檢視同步淡化過期案件",
+      "請假管理改為時段制（起訖日期＋時間），支援跨日請假",
+      "新增請假衝突偵測：送出請假前自動比對已排定案件，可選擇取消或強制送出",
+      "智慧推薦面板新增計分說明（相同地號 +10 分、鄰近 ±10 筆 +5 分）及每位推薦人的分數顯示",
+    ],
+  },
+  {
+    version: "v2.2.0",
+    date: "2026-02-23",
+    items: [
+      "新增地圖檢視，可在 OpenStreetMap 上查看案件座標分佈",
+      "案件篩選新增「僅顯示未指派」開關",
+      "自動排程支援循序制與積分制兩種模式",
+      "案件類型可自訂新增與管理",
+    ],
+  },
+  {
+    version: "v2.1.0",
+    date: "2026-01-26",
+    items: [
+      "新增智慧推薦測量員，根據歷史地號自動評分",
+      "NLSC 座標自動查詢，支援苗栗縣 GIS 備援",
+      "月曆檢視可依測量員或案件類型篩選",
+    ],
+  },
+];
 
 const COLOR_PALETTE = [
   { bg: "bg-blue-100 dark:bg-blue-900", border: "border-blue-300 dark:border-blue-700" },
@@ -45,6 +81,7 @@ export default function Home() {
   const [detailCase, setDetailCase] = useState<SurveyCase | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedMapCaseId, setSelectedMapCaseId] = useState<string | null>(null);
+  const [isChangelogOpen, setIsChangelogOpen] = useState(false);
 
   const { data: cases = [], isLoading } = useQuery<SurveyCase[]>({
     queryKey: ["/api/cases"],
@@ -159,7 +196,17 @@ export default function Home() {
           <div className="flex items-center justify-between gap-4 h-16">
             <div className="flex items-center gap-3 shrink-0">
               <MapIcon className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-semibold hidden sm:block">測量案件排程系統</h1>
+              <div className="hidden sm:flex items-center gap-2">
+                <h1 className="text-xl font-semibold">測量案件排程系統</h1>
+                <button
+                  onClick={() => setIsChangelogOpen(true)}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors text-primary text-xs font-medium"
+                  data-testid="button-changelog"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  {APP_VERSION}
+                </button>
+              </div>
             </div>
             <div className="flex-1 max-w-md mx-4">
               <CaseSearch onCaseSelect={handleCaseDetail} />
@@ -340,6 +387,41 @@ export default function Home() {
         caseData={detailCase}
         onEdit={handleEditFromDetail}
       />
+
+      <Dialog open={isChangelogOpen} onOpenChange={setIsChangelogOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto" data-testid="dialog-changelog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              更新日誌
+            </DialogTitle>
+            <DialogDescription>各版本新增功能與改善項目摘要</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 pt-2">
+            {CHANGELOG.map((release) => (
+              <div key={release.version}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge variant={release.version === APP_VERSION ? "default" : "secondary"} className="font-mono">
+                    {release.version}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">{release.date}</span>
+                  {release.version === APP_VERSION && (
+                    <Badge variant="outline" className="text-xs text-green-600 border-green-400">最新</Badge>
+                  )}
+                </div>
+                <ul className="space-y-1.5 ml-1">
+                  {release.items.map((item, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <span className="text-primary mt-0.5 shrink-0">•</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
