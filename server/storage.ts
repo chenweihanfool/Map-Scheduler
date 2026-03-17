@@ -10,7 +10,7 @@ import {
   DEFAULT_CASE_TYPES
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, asc, and, gte, or, ilike } from "drizzle-orm";
+import { eq, desc, asc, and, gte, lte, or, ilike } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -202,20 +202,24 @@ export class DatabaseStorage implements IStorage {
 
   async getAllLeaves(): Promise<SurveyorLeave[]> {
     const today = new Date().toISOString().split('T')[0];
+    const todayStart = `${today} 00:00`;
     return db.select().from(surveyorLeaves)
-      .where(gte(surveyorLeaves.leaveDate, today))
-      .orderBy(asc(surveyorLeaves.leaveDate));
+      .where(gte(surveyorLeaves.endDatetime, todayStart))
+      .orderBy(asc(surveyorLeaves.startDatetime));
   }
 
   async getLeavesByDate(date: string): Promise<SurveyorLeave[]> {
-    return db.select().from(surveyorLeaves)
-      .where(eq(surveyorLeaves.leaveDate, date));
+    // Returns leaves that overlap with the given date (YYYY-MM-DD)
+    const dayStart = `${date} 00:00`;
+    const dayEnd = `${date} 23:59`;
+    const all = await db.select().from(surveyorLeaves);
+    return all.filter(l => l.startDatetime <= dayEnd && l.endDatetime >= dayStart);
   }
 
   async getLeavesBySurveyor(surveyorId: string): Promise<SurveyorLeave[]> {
     return db.select().from(surveyorLeaves)
       .where(eq(surveyorLeaves.surveyorId, surveyorId))
-      .orderBy(asc(surveyorLeaves.leaveDate));
+      .orderBy(asc(surveyorLeaves.startDatetime));
   }
 
   async createLeave(data: InsertSurveyorLeave): Promise<SurveyorLeave> {

@@ -19,6 +19,8 @@ interface CalendarFiltersProps {
   onCaseTypeFilterChange: (value: string) => void;
   showVacantOnly: boolean;
   onShowVacantOnlyChange: (value: boolean) => void;
+  dimPastCases: boolean;
+  onDimPastCasesChange: (value: boolean) => void;
   onClearFilters: () => void;
 }
 
@@ -29,13 +31,15 @@ export function CalendarFilters({
   onCaseTypeFilterChange,
   showVacantOnly,
   onShowVacantOnlyChange,
+  dimPastCases,
+  onDimPastCasesChange,
   onClearFilters,
 }: CalendarFiltersProps) {
   const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
     queryKey: ["/api/surveyors"],
   });
 
-  const hasActiveFilters = surveyorFilter || caseTypeFilter || showVacantOnly;
+  const hasActiveFilters = surveyorFilter || caseTypeFilter || showVacantOnly || dimPastCases;
 
   return (
     <div className="flex flex-wrap items-center gap-4">
@@ -77,6 +81,18 @@ export function CalendarFilters({
         />
         <Label htmlFor="show-vacant" className="text-sm">
           僅顯示空白時段
+        </Label>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Switch
+          id="dim-past"
+          checked={dimPastCases}
+          onCheckedChange={onDimPastCasesChange}
+          data-testid="switch-dim-past"
+        />
+        <Label htmlFor="dim-past" className="text-sm">
+          淡化過去案件
         </Label>
       </div>
 

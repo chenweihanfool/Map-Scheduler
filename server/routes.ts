@@ -477,9 +477,10 @@ export async function registerRoutes(
     }
   });
 
-  // Create leave
+  // Create leave (with conflict detection)
   app.post("/api/leaves", async (req, res) => {
     try {
+      const force = req.query.force === "true";
       const validationResult = insertSurveyorLeaveSchema.safeParse(req.body);
       if (!validationResult.success) {
         return res.status(400).json({ 
@@ -487,6 +488,38 @@ export async function registerRoutes(
           details: validationResult.error.flatten() 
         });
       }
+
+      const { surveyorName, startDatetime, endDatetime } = validationResult.data;
+
+      // Validate start < end
+      if (startDatetime >= endDatetime) {
+        return res.status(400).json({ error: "開始時間必須早於結束時間" });
+      }
+
+      if (!force) {
+        // Check for conflicting cases within the leave range
+        const allCases = await storage.getAllCases();
+        const conflicts = allCases.filter(c => {
+          if (c.surveyor !== surveyorName) return false;
+          const caseDateTime = `${c.surveyDate} ${c.scheduledTime}`;
+          return caseDateTime >= startDatetime && caseDateTime <= endDatetime;
+        });
+
+        if (conflicts.length > 0) {
+          return res.status(409).json({
+            error: "CONFLICT",
+            message: `請假期間已有 ${conflicts.length} 筆排定案件`,
+            conflicts: conflicts.map(c => ({
+              id: c.id,
+              caseNumber: c.caseNumber,
+              surveyDate: c.surveyDate,
+              scheduledTime: c.scheduledTime,
+              landParcel: c.landParcel,
+            })),
+          });
+        }
+      }
+
       const leave = await storage.createLeave(validationResult.data);
       res.status(201).json(leave);
     } catch (error) {

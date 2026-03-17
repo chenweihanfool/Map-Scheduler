@@ -48,6 +48,7 @@ interface CasesTableProps {
   cases: SurveyCase[];
   isLoading: boolean;
   onEdit: (surveyCase: SurveyCase) => void;
+  dimPastCases?: boolean;
 }
 
 function CoordinateStatusBadge({ status, longitude, latitude }: { 
@@ -103,7 +104,9 @@ function CoordinateStatusBadge({ status, longitude, latitude }: {
 type SortField = "caseNumber" | "surveyor" | "surveyDate" | null;
 type SortDirection = "asc" | "desc";
 
-export function CasesTable({ cases, isLoading, onEdit }: CasesTableProps) {
+const todayStr = new Date().toISOString().split("T")[0];
+
+export function CasesTable({ cases, isLoading, onEdit, dimPastCases }: CasesTableProps) {
   const { toast } = useToast();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>(null);
@@ -260,10 +263,12 @@ export function CasesTable({ cases, isLoading, onEdit }: CasesTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedCases.map((surveyCase, index) => (
+            {sortedCases.map((surveyCase, index) => {
+              const isPast = dimPastCases && surveyCase.surveyDate < todayStr;
+              return (
               <TableRow 
                 key={surveyCase.id} 
-                className={index % 2 === 0 ? "bg-background" : "bg-muted/30"}
+                className={`${index % 2 === 0 ? "bg-background" : "bg-muted/30"} ${isPast ? "opacity-40" : ""}`}
                 data-testid={`row-case-${surveyCase.id}`}
               >
                 <TableCell className="font-medium" data-testid={`text-case-number-${surveyCase.id}`}>
@@ -338,7 +343,8 @@ export function CasesTable({ cases, isLoading, onEdit }: CasesTableProps) {
                   </div>
                 </TableCell>
               </TableRow>
-            ))}
+            );
+            })}
           </TableBody>
         </Table>
       </div>

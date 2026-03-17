@@ -9,6 +9,8 @@ import {
   startOfWeek,
   endOfWeek,
   isToday,
+  isBefore,
+  startOfDay,
   addMonths,
   subMonths
 } from "date-fns";
@@ -27,6 +29,7 @@ interface CalendarViewProps {
   surveyorFilter: string;
   caseTypeFilter: string;
   showVacantOnly: boolean;
+  dimPastCases: boolean;
 }
 
 const MAX_CASES_PER_DAY = 10;
@@ -54,8 +57,10 @@ export function CalendarView({
   onCaseClick,
   surveyorFilter,
   caseTypeFilter,
-  showVacantOnly
+  showVacantOnly,
+  dimPastCases,
 }: CalendarViewProps) {
+  const today = startOfDay(new Date());
   const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
     queryKey: ["/api/surveyors"],
   });
@@ -107,11 +112,19 @@ export function CalendarView({
   const leavesByDate = useMemo(() => {
     const map = new Map<string, SurveyorLeave[]>();
     leavesList.forEach((leave) => {
-      const dateKey = leave.leaveDate;
-      if (!map.has(dateKey)) {
-        map.set(dateKey, []);
+      if (!leave.startDatetime || !leave.endDatetime) return;
+      const startDate = leave.startDatetime.substring(0, 10);
+      const endDate = leave.endDatetime.substring(0, 10);
+      // Expand leave across all days it covers
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const cur = new Date(start);
+      while (cur <= end) {
+        const dateKey = format(cur, "yyyy-MM-dd");
+        if (!map.has(dateKey)) map.set(dateKey, []);
+        map.get(dateKey)!.push(leave);
+        cur.setDate(cur.getDate() + 1);
       }
-      map.get(dateKey)!.push(leave);
     });
     return map;
   }, [leavesList]);
@@ -193,12 +206,15 @@ export function CalendarView({
             return acc;
           }, {} as Record<string, SurveyCase[]>);
 
+          const isPastDay = isBefore(startOfDay(day), today);
+
           return (
             <div
               key={dateKey}
               className={cn(
                 "bg-background min-h-[120px] p-1 relative group",
-                !isCurrentMonth && "bg-muted/50"
+                !isCurrentMonth && "bg-muted/50",
+                dimPastCases && isPastDay && !isTodayDate && "bg-muted/30"
               )}
               data-testid={`calendar-day-${dateKey}`}
             >
@@ -244,7 +260,8 @@ export function CalendarView({
                         onClick={() => onCaseClick(c)}
                         className={cn(
                           "w-full text-left text-xs px-1.5 py-0.5 rounded border truncate hover-elevate",
-                          surveyorColors[surveyor] || "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700"
+                          surveyorColors[surveyor] || "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700",
+                          dimPastCases && isPastDay && !isTodayDate && "opacity-40"
                         )}
                         data-testid={`case-${c.id}`}
                       >

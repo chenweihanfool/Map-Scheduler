@@ -40,6 +40,7 @@ export default function Home() {
   const [surveyorFilter, setSurveyorFilter] = useState("");
   const [caseTypeFilter, setCaseTypeFilter] = useState("");
   const [showVacantOnly, setShowVacantOnly] = useState(false);
+  const [dimPastCases, setDimPastCases] = useState(false);
   
   const [detailCase, setDetailCase] = useState<SurveyCase | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -136,6 +137,7 @@ export default function Home() {
     setSurveyorFilter("");
     setCaseTypeFilter("");
     setShowVacantOnly(false);
+    setDimPastCases(false);
   };
 
   const handleCaseDetail = (surveyCase: SurveyCase) => {
@@ -221,6 +223,8 @@ export default function Home() {
                 onCaseTypeFilterChange={setCaseTypeFilter}
                 showVacantOnly={showVacantOnly}
                 onShowVacantOnlyChange={setShowVacantOnly}
+                dimPastCases={dimPastCases}
+                onDimPastCasesChange={setDimPastCases}
                 onClearFilters={clearFilters}
               />
             </div>
@@ -235,6 +239,7 @@ export default function Home() {
                 surveyorFilter={surveyorFilter}
                 caseTypeFilter={caseTypeFilter}
                 showVacantOnly={showVacantOnly}
+                dimPastCases={dimPastCases}
               />
             )}
             {activeView === "list" && (
@@ -242,6 +247,7 @@ export default function Home() {
                 cases={filteredCases} 
                 isLoading={isLoading} 
                 onEdit={handleEdit}
+                dimPastCases={dimPastCases}
               />
             )}
             {activeView === "map" && (
@@ -250,6 +256,7 @@ export default function Home() {
                 onCaseClick={handleCaseDetail}
                 selectedCaseId={selectedMapCaseId}
                 className="h-[600px]"
+                dimPastCases={dimPastCases}
               />
             )}
           </CardContent>

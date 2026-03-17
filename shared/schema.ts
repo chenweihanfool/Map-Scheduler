@@ -139,7 +139,8 @@ export const surveyorLeaves = pgTable("surveyor_leaves", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   surveyorId: varchar("surveyor_id").notNull().references(() => surveyors.id, { onDelete: "cascade" }),
   surveyorName: text("surveyor_name").notNull(), // 備份名稱方便查詢
-  leaveDate: text("leave_date").notNull(), // 請假日期 (YYYY-MM-DD format)
+  startDatetime: text("start_datetime").notNull(), // 請假開始時間 (YYYY-MM-DD HH:MM format)
+  endDatetime: text("end_datetime").notNull(),     // 請假結束時間 (YYYY-MM-DD HH:MM format)
   reason: text("reason"), // 請假原因
   createdAt: timestamp("created_at").defaultNow(),
 });

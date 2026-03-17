@@ -12,6 +12,7 @@ interface CaseMapProps {
   onCaseClick?: (caseItem: SurveyCase) => void;
   selectedCaseId?: string | null;
   className?: string;
+  dimPastCases?: boolean;
 }
 
 const customIcon = L.divIcon({
@@ -50,6 +51,25 @@ const selectedIcon = L.divIcon({
   popupAnchor: [0, -32],
 });
 
+const dimIcon = L.divIcon({
+  className: "custom-marker-dim",
+  html: `<div style="
+    background-color: #aaa;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid #ccc;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    opacity: 0.45;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  "><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>`,
+  iconSize: [20, 20],
+  iconAnchor: [10, 20],
+  popupAnchor: [0, -20],
+});
+
 
 function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
@@ -61,7 +81,9 @@ function MapController({ center, zoom }: { center: [number, number]; zoom: numbe
   return null;
 }
 
-export function CaseMap({ cases, onCaseClick, selectedCaseId, className }: CaseMapProps) {
+const todayStr = new Date().toISOString().split("T")[0];
+
+export function CaseMap({ cases, onCaseClick, selectedCaseId, className, dimPastCases }: CaseMapProps) {
   const casesWithCoords = cases.filter(
     (c) => c.longitude && c.latitude && c.coordinateStatus === "success"
   );
@@ -112,12 +134,13 @@ export function CaseMap({ cases, onCaseClick, selectedCaseId, className }: CaseM
           const lat = caseItem.latitude!;
           const lng = caseItem.longitude!;
           const isSelected = caseItem.id === selectedCaseId;
+          const isPast = dimPastCases && caseItem.surveyDate < todayStr;
           
           return (
             <Marker
               key={caseItem.id}
               position={[lat, lng]}
-              icon={isSelected ? selectedIcon : customIcon}
+              icon={isSelected ? selectedIcon : (isPast ? dimIcon : customIcon)}
               eventHandlers={{
                 click: () => onCaseClick?.(caseItem),
               }}
