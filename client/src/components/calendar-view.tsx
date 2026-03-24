@@ -15,7 +15,7 @@ import {
   subMonths
 } from "date-fns";
 import { zhTW } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Plus, UserX, Maximize2, Pencil } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, UserX, Maximize2, Pencil, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -36,7 +36,8 @@ interface CalendarViewProps {
 
 const MAX_CASES_PER_DAY = 10;
 
-const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
+const WEEKDAYS_ALL = ["日", "一", "二", "三", "四", "五", "六"];
+const WEEKDAYS_WORK = ["一", "二", "三", "四", "五"];
 
 const COLOR_PALETTE = [
   "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-800",
@@ -64,6 +65,7 @@ export function CalendarView({
 }: CalendarViewProps) {
   const today = startOfDay(new Date());
   const [detailDay, setDetailDay] = useState<{ date: Date; dateKey: string } | null>(null);
+  const [hideWeekends, setHideWeekends] = useState(true);
 
   const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
     queryKey: ["/api/surveyors"],
@@ -83,12 +85,16 @@ export function CalendarView({
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
-  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
-  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
+  const calendarStart = startOfWeek(monthStart, { weekStartsOn: hideWeekends ? 1 : 0 });
+  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: hideWeekends ? 1 : 0 });
 
   const days = useMemo(() => {
-    return eachDayOfInterval({ start: calendarStart, end: calendarEnd });
-  }, [calendarStart, calendarEnd]);
+    const allDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+    if (hideWeekends) {
+      return allDays.filter(d => d.getDay() !== 0 && d.getDay() !== 6);
+    }
+    return allDays;
+  }, [calendarStart, calendarEnd, hideWeekends]);
 
   const filteredCases = useMemo(() => {
     return cases.filter((c) => {
@@ -102,9 +108,7 @@ export function CalendarView({
     const map = new Map<string, SurveyCase[]>();
     filteredCases.forEach((c) => {
       const dateKey = c.surveyDate;
-      if (!map.has(dateKey)) {
-        map.set(dateKey, []);
-      }
+      if (!map.has(dateKey)) map.set(dateKey, []);
       map.get(dateKey)!.push(c);
     });
     map.forEach((cases) => {
@@ -152,7 +156,6 @@ export function CalendarView({
     onCaseClick(surveyCase);
   };
 
-  // Data for the detail popup
   const detailCases = detailDay ? (casesByDate.get(detailDay.dateKey) || []) : [];
   const detailLeaves = detailDay ? (leavesByDate.get(detailDay.dateKey) || []) : [];
   const detailGrouped = detailCases.reduce((acc, c) => {
@@ -161,8 +164,11 @@ export function CalendarView({
     return acc;
   }, {} as Record<string, SurveyCase[]>);
 
+  const weekdayLabels = hideWeekends ? WEEKDAYS_WORK : WEEKDAYS_ALL;
+
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" onClick={handlePrevMonth} data-testid="button-prev-month">
@@ -175,25 +181,39 @@ export function CalendarView({
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <Button variant="outline" onClick={handleToday} data-testid="button-today">
-          今天
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={hideWeekends ? "default" : "outline"}
+            size="sm"
+            onClick={() => setHideWeekends(!hideWeekends)}
+            data-testid="button-toggle-weekends"
+            className="gap-1.5"
+          >
+            <CalendarDays className="h-4 w-4" />
+            {hideWeekends ? "僅顯示平日" : "顯示全週"}
+          </Button>
+          <Button variant="outline" onClick={handleToday} data-testid="button-today">
+            今天
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
-        {WEEKDAYS.map((day, index) => (
+      {/* Calendar Grid */}
+      <div className={cn(
+        "grid gap-px bg-border rounded-lg overflow-hidden",
+        hideWeekends ? "grid-cols-5" : "grid-cols-7"
+      )}>
+        {/* Weekday headers */}
+        {weekdayLabels.map((day) => (
           <div
             key={day}
-            className={cn(
-              "bg-muted py-2 text-center text-sm font-medium",
-              index === 0 && "text-red-500 dark:text-red-400",
-              index === 6 && "text-blue-500 dark:text-blue-400"
-            )}
+            className="bg-muted py-2 text-center text-sm font-medium"
           >
             {day}
           </div>
         ))}
 
+        {/* Day cells */}
         {days.map((day) => {
           const dateKey = format(day, "yyyy-MM-dd");
           const dayCases = casesByDate.get(dateKey) || [];
@@ -203,6 +223,7 @@ export function CalendarView({
           const dayOfWeek = day.getDay();
           const hasVacancy = dayCases.length < MAX_CASES_PER_DAY;
           const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+          const isPastDay = isBefore(startOfDay(day), today);
 
           if (showVacantOnly && (!hasVacancy || isWeekend || !isCurrentMonth)) {
             return (
@@ -224,9 +245,6 @@ export function CalendarView({
             return acc;
           }, {} as Record<string, SurveyCase[]>);
 
-          const isPastDay = isBefore(startOfDay(day), today);
-          const hasMore = dayCases.length > 0;
-
           return (
             <div
               key={dateKey}
@@ -237,6 +255,7 @@ export function CalendarView({
               )}
               data-testid={`calendar-day-${dateKey}`}
             >
+              {/* Date number + Add button */}
               <div className="flex items-center justify-between mb-1">
                 <button
                   className={cn(
@@ -244,8 +263,6 @@ export function CalendarView({
                     isTodayDate && "bg-primary text-primary-foreground font-bold",
                     !isTodayDate && isCurrentMonth && "hover:bg-muted cursor-pointer",
                     !isCurrentMonth && "text-muted-foreground cursor-pointer hover:bg-muted",
-                    dayOfWeek === 0 && isCurrentMonth && !isTodayDate && "text-red-500 dark:text-red-400",
-                    dayOfWeek === 6 && isCurrentMonth && !isTodayDate && "text-blue-500 dark:text-blue-400"
                   )}
                   onClick={() => handleDayNumberClick(day, dateKey)}
                   data-testid={`button-day-detail-${dateKey}`}
@@ -265,6 +282,7 @@ export function CalendarView({
                 </Button>
               </div>
 
+              {/* Leave indicators */}
               {dayLeaves.length > 0 && (
                 <div className="mb-1 flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400" data-testid={`leaves-${dateKey}`}>
                   <UserX className="h-3 w-3 flex-shrink-0" />
@@ -272,32 +290,28 @@ export function CalendarView({
                 </div>
               )}
 
-              <div className="space-y-1 overflow-hidden max-h-[70px]">
+              {/* Cases grouped by surveyor */}
+              <div className="space-y-1 overflow-hidden max-h-[90px]">
                 {Object.entries(groupedBySurveyor).map(([surveyor, surveyorCases]) => (
                   <div key={surveyor} className="space-y-0.5">
                     <div className="text-xs font-medium text-muted-foreground truncate">
                       {surveyor}
                     </div>
                     {surveyorCases.map((c) => (
-                      <button
+                      <CaseChip
                         key={c.id}
+                        surveyCase={c}
+                        colorClass={surveyorColors[surveyor] || "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700"}
+                        dimmed={dimPastCases && isPastDay && !isTodayDate}
                         onClick={() => onCaseClick(c)}
-                        className={cn(
-                          "w-full text-left text-xs px-1.5 py-0.5 rounded border truncate hover-elevate",
-                          surveyorColors[surveyor] || "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700",
-                          dimPastCases && isPastDay && !isTodayDate && "opacity-40"
-                        )}
-                        data-testid={`case-${c.id}`}
-                      >
-                        {c.scheduledTime} {c.caseType} {c.landParcel}
-                      </button>
+                      />
                     ))}
                   </div>
                 ))}
               </div>
 
-              {/* Show "expand" hint if there are cases, or "click to add" if empty */}
-              {hasMore ? (
+              {/* Expand hint or empty hint */}
+              {dayCases.length > 0 ? (
                 <button
                   className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={() => handleDayNumberClick(day, dateKey)}
@@ -321,6 +335,7 @@ export function CalendarView({
         })}
       </div>
 
+      {/* Surveyor legend */}
       <div className="flex flex-wrap items-center gap-4 pt-2">
         <span className="text-sm text-muted-foreground">測量員：</span>
         {surveyorsList.map((surveyor) => (
@@ -346,7 +361,6 @@ export function CalendarView({
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto space-y-3 py-2 min-h-0">
-            {/* Leaves info */}
             {detailLeaves.length > 0 && (
               <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800">
                 <UserX className="h-4 w-4 text-orange-500 shrink-0" />
@@ -357,7 +371,6 @@ export function CalendarView({
               </div>
             )}
 
-            {/* Cases grouped by surveyor */}
             {detailCases.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground text-sm">
                 本日無排定案件
@@ -412,6 +425,67 @@ export function CalendarView({
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ── Case chip with hover tooltip ──────────────────────────────────────────────
+function CaseChip({
+  surveyCase: c,
+  colorClass,
+  dimmed,
+  onClick,
+}: {
+  surveyCase: SurveyCase;
+  colorClass: string;
+  dimmed: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div className="relative group/chip">
+      <button
+        onClick={onClick}
+        className={cn(
+          "w-full text-left text-xs px-1.5 py-0.5 rounded border truncate hover-elevate",
+          colorClass,
+          dimmed && "opacity-40"
+        )}
+        data-testid={`case-${c.id}`}
+      >
+        {c.scheduledTime} {c.caseType} {c.landParcel}
+      </button>
+
+      {/* Hover tooltip */}
+      <div className={cn(
+        "absolute left-0 top-full mt-0.5 z-50 pointer-events-none",
+        "hidden group-hover/chip:block",
+        "min-w-[180px] max-w-[260px]",
+        "rounded-md border bg-popover text-popover-foreground shadow-md px-3 py-2 text-xs"
+      )}>
+        <div className="font-semibold mb-1 text-sm">{c.landParcel}</div>
+        <div className="space-y-0.5 text-muted-foreground">
+          <div className="flex gap-2">
+            <span className="shrink-0">時間</span>
+            <span className="text-foreground">{c.scheduledTime}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="shrink-0">類型</span>
+            <span className="text-foreground">{c.caseType}</span>
+          </div>
+          {c.owner && (
+            <div className="flex gap-2">
+              <span className="shrink-0">地主</span>
+              <span className="text-foreground">{c.owner}</span>
+            </div>
+          )}
+          {c.caseNumber && (
+            <div className="flex gap-2 mt-1 pt-1 border-t">
+              <span className="shrink-0 text-muted-foreground/70">字號</span>
+              <span className="text-muted-foreground/70 break-all">{c.caseNumber}</span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
