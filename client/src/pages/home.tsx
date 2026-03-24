@@ -18,10 +18,18 @@ import { CaseMap } from "@/components/case-map";
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.4.0";
-const RELEASE_DATE = "2026-03-17";
+const APP_VERSION = "v2.5.0";
+const RELEASE_DATE = "2026-03-24";
 
 const CHANGELOG = [
+  {
+    version: "v2.5.0",
+    date: "2026-03-24",
+    items: [
+      "日曆新增「隱藏週末」切換鈕，切換後以五欄顯示平日，每日欄位更寬敞",
+      "案件標籤滑鼠懸停即顯示完整地號、時間、類型、地主資訊，浮動於所有元件之上不被遮擋",
+    ],
+  },
   {
     version: "v2.4.0",
     date: "2026-03-17",
