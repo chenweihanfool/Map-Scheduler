@@ -429,7 +429,7 @@ export function CalendarView({
   );
 }
 
-// ── Case chip with hover tooltip ──────────────────────────────────────────────
+// ── Case chip with fixed-position hover tooltip ───────────────────────────────
 function CaseChip({
   surveyCase: c,
   colorClass,
@@ -441,10 +441,32 @@ function CaseChip({
   dimmed: boolean;
   onClick: () => void;
 }) {
+  const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties | null>(null);
+
+  const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const tooltipWidth = 280;
+
+    let left = rect.left;
+    // If tooltip would overflow right edge, flip to left-align from right side
+    if (left + tooltipWidth > viewportWidth - 16) {
+      left = viewportWidth - tooltipWidth - 16;
+    }
+
+    const top = rect.bottom + 6;
+
+    setTooltipStyle({ position: "fixed", left, top, width: tooltipWidth, zIndex: 9999 });
+  };
+
+  const handleMouseLeave = () => setTooltipStyle(null);
+
   return (
-    <div className="relative group/chip">
+    <div className="relative">
       <button
         onClick={onClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         className={cn(
           "w-full text-left text-xs px-1.5 py-0.5 rounded border truncate hover-elevate",
           colorClass,
@@ -455,37 +477,37 @@ function CaseChip({
         {c.scheduledTime} {c.caseType} {c.landParcel}
       </button>
 
-      {/* Hover tooltip */}
-      <div className={cn(
-        "absolute left-0 top-full mt-0.5 z-50 pointer-events-none",
-        "hidden group-hover/chip:block",
-        "min-w-[180px] max-w-[260px]",
-        "rounded-md border bg-popover text-popover-foreground shadow-md px-3 py-2 text-xs"
-      )}>
-        <div className="font-semibold mb-1 text-sm">{c.landParcel}</div>
-        <div className="space-y-0.5 text-muted-foreground">
-          <div className="flex gap-2">
-            <span className="shrink-0">時間</span>
-            <span className="text-foreground">{c.scheduledTime}</span>
-          </div>
-          <div className="flex gap-2">
-            <span className="shrink-0">類型</span>
-            <span className="text-foreground">{c.caseType}</span>
-          </div>
-          {c.owner && (
-            <div className="flex gap-2">
-              <span className="shrink-0">地主</span>
-              <span className="text-foreground">{c.owner}</span>
+      {/* Fixed-position tooltip — renders above all UI elements */}
+      {tooltipStyle && (
+        <div
+          style={tooltipStyle}
+          className="pointer-events-none rounded-lg border bg-popover text-popover-foreground shadow-xl px-4 py-3 text-sm"
+        >
+          <div className="font-semibold text-base mb-2 leading-snug">{c.landParcel}</div>
+          <div className="space-y-1 text-muted-foreground">
+            <div className="flex gap-3">
+              <span className="shrink-0 w-8">時間</span>
+              <span className="text-foreground font-medium">{c.scheduledTime}</span>
             </div>
-          )}
-          {c.caseNumber && (
-            <div className="flex gap-2 mt-1 pt-1 border-t">
-              <span className="shrink-0 text-muted-foreground/70">字號</span>
-              <span className="text-muted-foreground/70 break-all">{c.caseNumber}</span>
+            <div className="flex gap-3">
+              <span className="shrink-0 w-8">類型</span>
+              <span className="text-foreground">{c.caseType}</span>
             </div>
-          )}
+            {c.owner && (
+              <div className="flex gap-3">
+                <span className="shrink-0 w-8">地主</span>
+                <span className="text-foreground">{c.owner}</span>
+              </div>
+            )}
+            {c.caseNumber && (
+              <div className="flex gap-3 mt-2 pt-2 border-t border-border/50">
+                <span className="shrink-0 w-8 text-xs text-muted-foreground/60">字號</span>
+                <span className="text-xs text-muted-foreground/80 break-all">{c.caseNumber}</span>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
