@@ -60,6 +60,16 @@ export const COORDINATE_STATUSES = [
 export type CoordinateStatus = typeof COORDINATE_STATUSES[number];
 
 // Survey Case table for scheduling land survey appointments
+//
+// Note: the actual database table also has a `geom` column
+// (geometry(Point, 3826) via PostGIS, TWD97/TM2 projection of
+// longitude/latitude) that is deliberately NOT declared here. It's not read
+// or written by this app anywhere -- it exists for external tools (e.g.
+// QGIS connecting to the database directly) that expect projected
+// coordinates rather than WGS84 lon/lat. It was carried over as-is during
+// the 2026-08 migration off Replit specifically so those external
+// consumers keep working; don't remove it via drizzle-kit push without
+// checking whether anything still depends on it.
 export const surveyCases = pgTable("survey_cases", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseNumber: text("case_number").notNull(), // 案號

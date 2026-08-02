@@ -30,6 +30,12 @@ jobs:
       - run: npm ci
 
       - name: Build app (client + server bundle)
+        # DATABASE_URL is baked into the bundle at build time (see
+        # script/build.ts) since every distributed copy connects to the
+        # same shared Azure Postgres instance -- there's no per-user setup
+        # step for a non-technical team to get through.
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npm run build
 
       - name: Bundle launcher
