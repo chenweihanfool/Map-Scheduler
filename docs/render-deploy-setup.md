@@ -20,7 +20,11 @@ Render 只是負責跑這個 Node.js 網頁服務。
      其他地區可選）。
    - **Branch**：`main`。
    - **Runtime**：**Node**。
-   - **Build Command**：`npm ci && npm run build`
+   - **Build Command**：`npm ci --include=dev && npm run build`
+     （`--include=dev` 必須加，因為下面第 2 步設定的
+     `NODE_ENV=production` 在建置階段也會生效，導致 `npm ci` 預設跳過
+     `tsx`/`esbuild`/`vite` 這些放在 devDependencies 裡的建置工具，
+     建置會直接失敗報 `tsx: not found`。）
    - **Start Command**：`npm start`
    - **Instance Type**：**Free**。
 
