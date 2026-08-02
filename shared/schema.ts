@@ -1,7 +1,17 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, doublePrecision, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgSchema, text, varchar, timestamp, doublePrecision, integer, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// This app's tables live in a dedicated "mapscheduler" schema on the shared
+// Azure Postgres instance (not the default "public" schema), since that
+// database also hosts other unrelated apps' data. Using pgSchema().table()
+// bakes the schema into every generated query explicitly, rather than
+// relying on the connection's search_path -- more robust across a
+// connection pool where each new connection would otherwise need its own
+// SET search_path.
+const mapschedulerSchema = pgSchema("mapscheduler");
+const pgTable = mapschedulerSchema.table;
 
 // Business attribute options (業務屬性)
 export const BUSINESS_ATTRIBUTES = [

@@ -11,4 +11,8 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.DATABASE_URL,
   },
+  // The target Postgres instance is shared with other unrelated apps' data
+  // (their own schemas). Scoping drizzle-kit to just this schema stops
+  // `db:push` from ever seeing/touching anything outside it.
+  schemaFilter: ["mapscheduler"],
 });

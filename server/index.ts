@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { exec } from "child_process";
 
 const app = express();
 const httpServer = createServer(app);
@@ -85,14 +86,16 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-    },
-  );
+  // Each user runs their own local copy against the shared Azure database --
+  // bind to localhost only (no need to expose on the LAN, avoids a Windows
+  // Firewall prompt). reusePort isn't supported on Windows (throws ENOTSUP).
+  httpServer.listen(port, "127.0.0.1", () => {
+    log(`serving on port ${port}`);
+    // Only auto-open a browser when running as the packaged .exe (pkg sets
+    // process.pkg) -- doing this during normal dev/npm start would be an
+    // unwanted surprise.
+    if (process.pkg) {
+      exec(`start "" "http://127.0.0.1:${port}"`);
+    }
+  });
 })();
