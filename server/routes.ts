@@ -10,7 +10,8 @@ import {
   insertSurveyorLeaveSchema,
   insertCaseTypeSchema,
   CASE_TYPES,
-  type CoordinateStatus
+  type CoordinateStatus,
+  type SurveyCase
 } from "@shared/schema";
 import { processCoordinateLookup, lookupCoordinates } from "./coordinate-service";
 
@@ -455,10 +456,32 @@ export async function registerRoutes(
 
   // ===== Surveyor Leaves API =====
 
-  // Get all upcoming leaves
+  // Find cases scheduled for this surveyor inside the leave range
+  const findLeaveConflicts = async (surveyorName: string, startDatetime: string, endDatetime: string) => {
+    const allCases = await storage.getAllCases();
+    return allCases.filter(c => {
+      if (c.surveyor !== surveyorName) return false;
+      const caseDateTime = `${c.surveyDate} ${c.scheduledTime}`;
+      return caseDateTime >= startDatetime && caseDateTime <= endDatetime;
+    });
+  };
+
+  const conflictResponse = (conflicts: SurveyCase[]) => ({
+    error: "CONFLICT",
+    message: `請假期間已有 ${conflicts.length} 筆排定案件`,
+    conflicts: conflicts.map(c => ({
+      id: c.id,
+      caseNumber: c.caseNumber,
+      surveyDate: c.surveyDate,
+      scheduledTime: c.scheduledTime,
+      landParcel: c.landParcel,
+    })),
+  });
+
+  // Get upcoming leaves (?includePast=true also returns leaves that already ended)
   app.get("/api/leaves", async (req, res) => {
     try {
-      const leaves = await storage.getAllLeaves();
+      const leaves = await storage.getAllLeaves(req.query.includePast === "true");
       res.json(leaves);
     } catch (error) {
       console.error("Error fetching leaves:", error);
@@ -497,26 +520,9 @@ export async function registerRoutes(
       }
 
       if (!force) {
-        // Check for conflicting cases within the leave range
-        const allCases = await storage.getAllCases();
-        const conflicts = allCases.filter(c => {
-          if (c.surveyor !== surveyorName) return false;
-          const caseDateTime = `${c.surveyDate} ${c.scheduledTime}`;
-          return caseDateTime >= startDatetime && caseDateTime <= endDatetime;
-        });
-
+        const conflicts = await findLeaveConflicts(surveyorName, startDatetime, endDatetime);
         if (conflicts.length > 0) {
-          return res.status(409).json({
-            error: "CONFLICT",
-            message: `請假期間已有 ${conflicts.length} 筆排定案件`,
-            conflicts: conflicts.map(c => ({
-              id: c.id,
-              caseNumber: c.caseNumber,
-              surveyDate: c.surveyDate,
-              scheduledTime: c.scheduledTime,
-              landParcel: c.landParcel,
-            })),
-          });
+          return res.status(409).json(conflictResponse(conflicts));
         }
       }
 
@@ -525,6 +531,43 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error creating leave:", error);
       res.status(500).json({ error: "Failed to create leave" });
+    }
+  });
+
+  // Update leave (with conflict detection)
+  app.patch("/api/leaves/:id", async (req, res) => {
+    try {
+      const force = req.query.force === "true";
+      const validationResult = insertSurveyorLeaveSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({
+          error: "Validation failed",
+          details: validationResult.error.flatten()
+        });
+      }
+
+      const existing = await storage.getLeave(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ error: "Leave not found" });
+      }
+
+      const { surveyorName, startDatetime, endDatetime } = validationResult.data;
+      if (startDatetime >= endDatetime) {
+        return res.status(400).json({ error: "開始時間必須早於結束時間" });
+      }
+
+      if (!force) {
+        const conflicts = await findLeaveConflicts(surveyorName, startDatetime, endDatetime);
+        if (conflicts.length > 0) {
+          return res.status(409).json(conflictResponse(conflicts));
+        }
+      }
+
+      const leave = await storage.updateLeave(req.params.id, validationResult.data);
+      res.json(leave);
+    } catch (error) {
+      console.error("Error updating leave:", error);
+      res.status(500).json({ error: "Failed to update leave" });
     }
   });
 
