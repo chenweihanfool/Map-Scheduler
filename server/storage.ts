@@ -35,10 +35,12 @@ export interface IStorage {
   getSettings(): Promise<SystemSettings>;
   updateSettings(data: UpdateSettings): Promise<SystemSettings>;
 
-  getAllLeaves(): Promise<SurveyorLeave[]>;
+  getAllLeaves(includePast?: boolean): Promise<SurveyorLeave[]>;
+  getLeave(id: string): Promise<SurveyorLeave | undefined>;
   getLeavesByDate(date: string): Promise<SurveyorLeave[]>;
   getLeavesBySurveyor(surveyorId: string): Promise<SurveyorLeave[]>;
   createLeave(data: InsertSurveyorLeave): Promise<SurveyorLeave>;
+  updateLeave(id: string, data: Partial<InsertSurveyorLeave>): Promise<SurveyorLeave | undefined>;
   deleteLeave(id: string): Promise<boolean>;
 
   getAllCaseTypes(): Promise<CaseTypeRecord[]>;
@@ -200,12 +202,20 @@ export class DatabaseStorage implements IStorage {
     return settings;
   }
 
-  async getAllLeaves(): Promise<SurveyorLeave[]> {
+  async getAllLeaves(includePast = false): Promise<SurveyorLeave[]> {
+    if (includePast) {
+      return db.select().from(surveyorLeaves).orderBy(asc(surveyorLeaves.startDatetime));
+    }
     const today = new Date().toISOString().split('T')[0];
     const todayStart = `${today} 00:00`;
     return db.select().from(surveyorLeaves)
       .where(gte(surveyorLeaves.endDatetime, todayStart))
       .orderBy(asc(surveyorLeaves.startDatetime));
+  }
+
+  async getLeave(id: string): Promise<SurveyorLeave | undefined> {
+    const [leave] = await db.select().from(surveyorLeaves).where(eq(surveyorLeaves.id, id));
+    return leave || undefined;
   }
 
   async getLeavesByDate(date: string): Promise<SurveyorLeave[]> {
@@ -225,6 +235,15 @@ export class DatabaseStorage implements IStorage {
   async createLeave(data: InsertSurveyorLeave): Promise<SurveyorLeave> {
     const [leave] = await db.insert(surveyorLeaves).values(data).returning();
     return leave;
+  }
+
+  async updateLeave(id: string, data: Partial<InsertSurveyorLeave>): Promise<SurveyorLeave | undefined> {
+    const [leave] = await db
+      .update(surveyorLeaves)
+      .set(data)
+      .where(eq(surveyorLeaves.id, id))
+      .returning();
+    return leave || undefined;
   }
 
   async deleteLeave(id: string): Promise<boolean> {

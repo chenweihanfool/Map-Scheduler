@@ -4,6 +4,8 @@
 
 /* LIGHT MODE */
 :root {
+  /* 讓瀏覽器原生的日期／時間欄位圖示與下拉面板跟著主題配色 */
+  color-scheme: light;
   --button-outline: rgba(0,0,0, .10);
   --badge-outline: rgba(0,0,0, .05);
   --opaque-button-border-intensity: -8;
@@ -88,6 +90,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --button-outline: rgba(255,255,255, .10);
   --badge-outline: rgba(255,255,255, .05);
   --opaque-button-border-intensity: 9;
@@ -284,5 +287,56 @@
   .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
     inset: -1px;
+  }
+}
+
+/* 報表表格：不受深淺色主題影響，畫面預覽與列印一致 */
+.report-table {
+  border-collapse: collapse;
+}
+.report-table th,
+.report-table td {
+  border: 1px solid #a3a3a3;
+  padding: 4px 8px;
+}
+.report-table thead th {
+  background-color: #f0f0f0;
+  font-weight: 600;
+}
+.report-table tfoot td {
+  background-color: #f7f7f7;
+  font-weight: 600;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+  /* 深色模式時 color-scheme: dark 會讓頁邊空白也變黑，列印一律用淺色 */
+  :root,
+  .dark {
+    color-scheme: light;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #171717 !important;
+  }
+  .report-table th,
+  .report-table td,
+  .report-sheet {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .report-table thead {
+    display: table-header-group;
+  }
+  .report-table tr,
+  .report-section h3 {
+    break-inside: avoid;
+  }
+  .report-section h3 {
+    break-after: avoid;
   }
 }

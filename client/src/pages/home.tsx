@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Map as MapIcon, Calendar as CalendarIcon, List, Settings, User, CalendarOff, Sparkles } from "lucide-react";
+import { Plus, Map as MapIcon, Calendar as CalendarIcon, List, Settings, User, CalendarOff, Sparkles, FileBarChart } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,10 +18,20 @@ import { CaseMap } from "@/components/case-map";
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.5.0";
-const RELEASE_DATE = "2026-03-24";
+const APP_VERSION = "v2.6.0";
+const RELEASE_DATE = "2026-10-08";
 
 const CHANGELOG = [
+  {
+    version: "v2.6.0",
+    date: "2026-10-08",
+    items: [
+      "新增「報表」頁：可選時間區間，依測量員、案件類型、地區（通霄／苑裡）或總計統計，並可列印／另存 PDF",
+      "請假紀錄可編輯，並新增測量員、狀態、關鍵字篩選與排序（新到舊／舊到新）",
+      "首頁測量員卡片不再顯示案件數，改由報表查看",
+      "修正深色模式下日期／時間欄位圖示呈黑色看不清楚的問題",
+    ],
+  },
   {
     version: "v2.5.0",
     date: "2026-03-24",
@@ -148,16 +158,6 @@ export default function Home() {
     });
   }, [cases, surveyorFilter, caseTypeFilter]);
 
-  const surveyorCaseCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    cases.forEach((c) => {
-      if (c.surveyor) {
-        counts[c.surveyor] = (counts[c.surveyor] || 0) + 1;
-      }
-    });
-    return counts;
-  }, [cases]);
-
   const handleSurveyorCardClick = (surveyorName: string) => {
     if (surveyorFilter === surveyorName) {
       setSurveyorFilter("");
@@ -232,6 +232,12 @@ export default function Home() {
                 <Plus className="h-4 w-4 mr-2" />
                 <span className="hidden sm:inline">新增案件</span>
               </Button>
+              <Link href="/reports">
+                <Button variant="outline" data-testid="button-reports">
+                  <FileBarChart className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">報表</span>
+                </Button>
+              </Link>
               <Link href="/leaves">
                 <Button variant="outline" data-testid="button-leaves">
                   <CalendarOff className="h-4 w-4 sm:mr-2" />
@@ -327,7 +333,6 @@ export default function Home() {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-6">
           {surveyorsList.map((surveyor, index) => {
-            const caseCount = surveyorCaseCounts[surveyor.name] || 0;
             const isSelected = surveyorFilter === surveyor.name;
             const isNextAssignee = surveyor.id === nextAssigneeId;
             const isEligible = surveyor.businessAttribute === "複丈組";
@@ -354,9 +359,7 @@ export default function Home() {
                   <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold" data-testid={`stat-cases-${surveyor.id}`}>{caseCount}</div>
-                  <div className="flex items-center justify-between gap-2 mt-1 flex-wrap">
-                    <p className="text-xs text-muted-foreground">件案件</p>
+                  <div className="flex items-center justify-end gap-2 min-h-5 flex-wrap">
                     {isEligible && (
                       isPointsMode ? (
                         <div className="flex items-center gap-1">
