@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { LAND_SECTIONS, sectionLabel, type LandSection } from "@shared/land-sections";
+import { ALL_LAND_SECTIONS, LAND_SECTIONS, sectionLabel, type LandSection } from "@shared/land-sections";
 
 type SectionComboboxProps = Omit<React.ComponentProps<"input">, "value" | "onChange" | "onBlur" | "ref"> & {
   value: string;
@@ -34,7 +34,10 @@ export const SectionCombobox = forwardRef<HTMLInputElement, SectionComboboxProps
     const listRef = useRef<HTMLDivElement>(null);
 
     const options = useMemo(() => matchSections(value || ""), [value]);
-    const current = LAND_SECTIONS.find((s) => sectionLabel(s) === (value || "").trim());
+    // 現行地段優先；舊案件可能是已停用的地段，一樣顯示代碼並標註
+    const current =
+      LAND_SECTIONS.find((s) => sectionLabel(s) === (value || "").trim()) ??
+      ALL_LAND_SECTIONS.find((s) => sectionLabel(s) === (value || "").trim());
 
     useEffect(() => {
       setHighlight(0);
@@ -113,7 +116,7 @@ export const SectionCombobox = forwardRef<HTMLInputElement, SectionComboboxProps
         </div>
         {current && !open && (
           <p className="mt-1 text-xs text-muted-foreground" data-testid="text-section-code">
-            段代碼 {current.code}
+            段代碼 {current.code}{current.retired && "（此段已停用，請改選現行地段）"}
           </p>
         )}
         {open && (
