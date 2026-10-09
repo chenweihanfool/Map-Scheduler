@@ -3,6 +3,7 @@
 // API Reference: https://github.com/g0v/posland
 
 import { storage } from "./storage";
+import { LAND_SECTIONS, LAND_OFFICE_CODE, findLandSection } from "@shared/land-sections";
 
 interface CoordinateResult {
   longitude: number;
@@ -14,103 +15,11 @@ interface CoordinateResult {
 // Data source: https://github.com/g0v/posland/blob/master/section.json
 // Format: { "section_name": { office: "office_code", sect: "section_code" } }
 const MIAOLI_SECTIONS: Record<string, { office: string; sect: string }> = {
-  // 苑裡鎮 (K02) - Office: KC (通霄地政事務所)
-  "苑裡段北勢小段": { office: "KC", sect: "0300" },
-  "苑裡段苑裡小段": { office: "KC", sect: "0301" },
-  "苑裡坑段水柳坡小段": { office: "KC", sect: "0306" },
-  "貓盂段貓盂小段": { office: "KC", sect: "0308" },
-  "田寮段": { office: "KC", sect: "0309" },
-  "舊社段": { office: "KC", sect: "0310" },
-  "山腳段": { office: "KC", sect: "0311" },
-  "大埔段青埔小段": { office: "KC", sect: "0312" },
-  "大埔段大埔小段": { office: "KC", sect: "0313" },
-  "芎蕉坑段": { office: "KC", sect: "0314" },
-  "石頭坑段石頭坑小段": { office: "KC", sect: "0315" },
-  "石頭坑段新厝子小段": { office: "KC", sect: "0316" },
-  "南勢林段": { office: "KC", sect: "0317" },
-  "社苓段公館子小段": { office: "KC", sect: "0318" },
-  "社苓段社苓小段": { office: "KC", sect: "0319" },
-  "山柑段山柑小段": { office: "KC", sect: "0320" },
-  "山柑段山柑尾小段": { office: "KC", sect: "0321" },
-  "房裡段": { office: "KC", sect: "0322" },
-  "苑港段": { office: "KC", sect: "0354" },
-  "西海段": { office: "KC", sect: "0355" },
-  "房南段": { office: "KC", sect: "0356" },
-  "苑東段": { office: "KC", sect: "0357" },
-  "苑西段": { office: "KC", sect: "0358" },
-  "苑南段": { office: "KC", sect: "0359" },
-  "苑北段": { office: "KC", sect: "0360" },
-  "苑中段": { office: "KC", sect: "0361" },
-  "新興段": { office: "KC", sect: "0362" },
-  "福田段": { office: "KC", sect: "0363" },
-  "中正段": { office: "KC", sect: "0364" },
-  "房北段": { office: "KC", sect: "0365" },
-  "泰田段": { office: "KC", sect: "0366" },
-  "社柑段": { office: "KC", sect: "0367" },
-  "田中段": { office: "KC", sect: "0368" },
-  "田心段": { office: "KC", sect: "0369" },
-  "鎮安段": { office: "KC", sect: "0370" },
-  "玉山段": { office: "KC", sect: "0375" },
-  "玉豐段": { office: "KC", sect: "0376" },
-  "文山段": { office: "KC", sect: "0377" },
-  "新復北段": { office: "KC", sect: "0378" },
-  "新復南段": { office: "KC", sect: "0379" },
-  "新復東段": { office: "KC", sect: "0380" },
-  "啟心段": { office: "KC", sect: "0387" },
-  "上館段": { office: "KC", sect: "0388" },
-  "火炎山段": { office: "KC", sect: "0389" },
-  "慈護段": { office: "KC", sect: "0390" },
-  "致民段": { office: "KC", sect: "0391" },
-  "十股段": { office: "KC", sect: "0392" },
-  "蕉埔段": { office: "KC", sect: "0393" },
-  "藍田段": { office: "KC", sect: "0397" },
-  "興隆段": { office: "KC", sect: "0399" },
-  "苑坑段": { office: "KC", sect: "1100" },
-  "中溝段": { office: "KC", sect: "1101" },
-  "南山段": { office: "KC", sect: "1102" },
-  "順天段": { office: "KC", sect: "1103" },
-  
-  // 通霄鎮 (K03) - Office: KC (通霄地政事務所)
-  "白沙屯段": { office: "KC", sect: "0323" },
-  "內湖島段": { office: "KC", sect: "0324" },
-  "新埔段": { office: "KC", sect: "0325" },
-  "北勢窩段": { office: "KC", sect: "0327" },
-  "烏眉坑段": { office: "KC", sect: "0328" },
-  "楓樹窩段": { office: "KC", sect: "0329" },
-  "內湖段": { office: "KC", sect: "0330" },
-  "圳頭段": { office: "KC", sect: "0331" },
-  "北勢段": { office: "KC", sect: "0332" },
-  "梅樹腳段": { office: "KC", sect: "0335" },
-  "土城段": { office: "KC", sect: "0336" },
-  "南和段": { office: "KC", sect: "0337" },
-  "福興段": { office: "KC", sect: "0338" },
-  "大坪頂段": { office: "KC", sect: "0339" },
-  "五里牌段隘口寮小段": { office: "KC", sect: "0341" },
-  "五里牌段五里牌小段": { office: "KC", sect: "0343" },
-  "五里牌段羊寮小段": { office: "KC", sect: "0344" },
-  "五里牌段五福小段": { office: "KC", sect: "0345" },
-  "通東段": { office: "KC", sect: "0346" },
-  "通西段": { office: "KC", sect: "0347" },
-  "通南段": { office: "KC", sect: "0348" },
-  "通北段": { office: "KC", sect: "0349" },
-  "竹林段": { office: "KC", sect: "0350" },
-  "平元段": { office: "KC", sect: "0351" },
-  "海濱段": { office: "KC", sect: "0352" },
-  "南華段": { office: "KC", sect: "0353" },
-  "白沙段": { office: "KC", sect: "0381" },
-  "白東段": { office: "KC", sect: "0382" },
-  "內島段": { office: "KC", sect: "0383" },
-  "雲天段": { office: "KC", sect: "0384" },
-  "通灣段": { office: "KC", sect: "0385" },
-  "通平段": { office: "KC", sect: "0386" },
-  "保安林段": { office: "KC", sect: "0394" },
-  "內湖東段": { office: "KC", sect: "0395" },
-  "內湖西段": { office: "KC", sect: "0396" },
-  "北梅段": { office: "KC", sect: "0398" },
-  "中山段": { office: "KC", sect: "1104" },
-  "五南段": { office: "KC", sect: "1105" },
-  "上坪段": { office: "KC", sect: "0326" },
-  
+  // 苑裡鎮、通霄鎮 (Office: KC 通霄地政事務所) 由 shared/land-sections.ts 產生
+  ...Object.fromEntries(
+    LAND_SECTIONS.map((s) => [s.name, { office: LAND_OFFICE_CODE, sect: s.code }]),
+  ),
+
   // 苗栗市 (K01) - Office: KA (苗栗地政事務所)
   "嘉盛段": { office: "KA", sect: "0100" },
   "維祥段": { office: "KA", sect: "0101" },
@@ -120,6 +29,13 @@ const MIAOLI_SECTIONS: Record<string, { office: string; sect: string }> = {
   "恭敬段": { office: "KA", sect: "0105" },
   "新英段": { office: "KA", sect: "0106" },
 };
+
+// The regex can split names like "苑裡鎮鎮安段" at the wrong 鎮, so fall back to
+// matching known section names against the whole string
+function resolveSection(section: string, landParcel: string): { office: string; sect: string } | undefined {
+  const known = findLandSection(landParcel);
+  return MIAOLI_SECTIONS[section] ?? (known ? MIAOLI_SECTIONS[known.name] : undefined);
+}
 
 // Parse land parcel string to extract section name and parcel number
 // Format examples: "苑裡鎮苑東段203地號", "苗栗市中正段123-1地號"
@@ -161,7 +77,7 @@ async function lookupNLSC(landParcel: string): Promise<CoordinateResult | null> 
     return null;
   }
 
-  const sectionInfo = MIAOLI_SECTIONS[parsed.section];
+  const sectionInfo = resolveSection(parsed.section, landParcel);
   if (!sectionInfo) {
     console.log(`Section not found in mapping: ${parsed.section}`);
     console.log(`Available sections: ${Object.keys(MIAOLI_SECTIONS).slice(0, 10).join(", ")}...`);
@@ -238,7 +154,7 @@ async function lookupMiaoliGIS(landParcel: string): Promise<CoordinateResult | n
     return null;
   }
 
-  const sectionInfo = MIAOLI_SECTIONS[parsed.section];
+  const sectionInfo = resolveSection(parsed.section, landParcel);
   if (!sectionInfo) {
     console.log(`Section not found for Miaoli GIS: ${parsed.section}`);
     return null;

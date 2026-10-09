@@ -18,10 +18,18 @@ import { CaseMap } from "@/components/case-map";
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.6.0";
-const RELEASE_DATE = "2026-10-08";
+const APP_VERSION = "v2.6.1";
+const RELEASE_DATE = "2026-10-09";
 
 const CHANGELOG = [
+  {
+    version: "v2.6.1",
+    date: "2026-10-09",
+    items: [
+      "新增案件的地段選單顯示段代碼，依段代碼由小到大排列，可直接輸入段代碼或段名查詢",
+      "補上苑裡鎮南勢林坑段（1111）、通霄鎮城南溪南段（1116）、城北段（1117）",
+    ],
+  },
   {
     version: "v2.6.0",
     date: "2026-10-08",
