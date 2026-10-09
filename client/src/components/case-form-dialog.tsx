@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LAND_SECTIONS } from "@/lib/land-sections";
+import { SectionCombobox } from "@/components/section-combobox";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -494,21 +494,10 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                   <FormItem>
                     <FormLabel>地段 <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
-                      <div className="relative">
-                        <Input 
-                          placeholder="例: 苑裡鎮苑東段" 
-                          {...field}
-                          list="section-list"
-                          data-testid="input-section"
-                        />
-                        <datalist id="section-list">
-                          {LAND_SECTIONS.map((group) =>
-                            group.sections.map((section) => (
-                              <option key={`${group.township}-${section}`} value={`${group.township}${section}`} />
-                            ))
-                          )}
-                        </datalist>
-                      </div>
+                      <SectionCombobox
+                        {...field}
+                        placeholder="段代碼或段名，例: 0357、苑東"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

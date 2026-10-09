@@ -25,11 +25,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { LAND_SECTIONS, UNKNOWN_TOWNSHIP, getTownship } from "@/lib/land-sections";
+import { UNKNOWN_TOWNSHIP, getTownship } from "@/lib/land-sections";
+import { TOWNSHIPS as LAND_TOWNSHIPS } from "@shared/land-sections";
 import type { CaseTypeRecord, SurveyCase, Surveyor } from "@shared/schema";
 
 const UNASSIGNED = "（未指派）";
-const TOWNSHIPS = [...LAND_SECTIONS.map((group) => group.township), UNKNOWN_TOWNSHIP];
+const TOWNSHIPS = [...LAND_TOWNSHIPS, UNKNOWN_TOWNSHIP];
 
 type SectionKey = "bySurveyor" | "byCaseType" | "byTownship" | "surveyorByCaseType" | "surveyorByTownship" | "details";
 
