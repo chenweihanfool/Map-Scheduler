@@ -229,7 +229,7 @@ export function CalendarView({
             return (
               <div
                 key={dateKey}
-                className="bg-muted/30 min-h-[120px] p-1"
+                className="bg-muted/30 min-h-[120px] 2xl:min-h-[150px] p-1"
                 data-testid={`calendar-day-${dateKey}`}
               >
                 <span className="text-sm text-muted-foreground/50 w-7 h-7 flex items-center justify-center">
@@ -249,7 +249,7 @@ export function CalendarView({
             <div
               key={dateKey}
               className={cn(
-                "bg-background min-h-[120px] p-1 relative group",
+                "bg-background min-h-[120px] 2xl:min-h-[150px] p-1 relative group",
                 !isCurrentMonth && "bg-muted/50",
                 dimPastCases && isPastDay && !isTodayDate && "bg-muted/30"
               )}
@@ -291,7 +291,7 @@ export function CalendarView({
               )}
 
               {/* Cases grouped by surveyor */}
-              <div className="space-y-1 overflow-hidden max-h-[90px]">
+              <div className="space-y-1 overflow-hidden max-h-[90px] xl:max-h-[140px] 2xl:max-h-[200px]">
                 {Object.entries(groupedBySurveyor).map(([surveyor, surveyorCases]) => (
                   <div key={surveyor} className="space-y-0.5">
                     <div className="text-xs font-medium text-muted-foreground truncate">
