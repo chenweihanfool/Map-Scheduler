@@ -1,5 +1,8 @@
 # Claude session 注意事項
 
+## 語言
+一律使用繁體中文與使用者溝通（對話回覆、PR 標題與說明、commit 訊息、PR 留言皆同）。程式碼識別字與既有英文術語可保留原文。
+
 ## 與 HERMES 的控制頻道（只在需要時適用）
 HERMES（VPS 上的代理）負責部署與測試；Claude 在使用者明確放行後自己合併（規則見控制頻道的 CLAUDE.md §6），不部署、也不碰 `/vault`，部署只透過控制頻道 [chenweihanfool/hermes-control-channel PR #1](https://github.com/chenweihanfool/hermes-control-channel/pull/1) 留言請 HERMES 部署與測試。多個 Claude session 會同時在那一串留言，所以**只要這個 session 要在 PR #1 發留言，或看到 HERMES 的回覆，就要遵守下面幾點**。這個 repo 本身不一定由 HERMES 部署；沒有要和 HERMES 溝通時，可以忽略本節。
 
