@@ -78,10 +78,12 @@ export function CaseSearch({ onCaseSelect }: CaseSearchProps) {
             data-testid="input-case-search"
           />
           {searchQuery && (
+            // 定位放在外層：Button 的 hover-elevate 會把自身 position 設回 relative
+            <div className="absolute right-1 top-1/2 -translate-y-1/2">
             <Button
               variant="ghost"
               size="icon"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
+              className="h-6 w-6"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -93,6 +95,7 @@ export function CaseSearch({ onCaseSelect }: CaseSearchProps) {
             >
               <X className="h-3 w-3" />
             </Button>
+            </div>
           )}
         </div>
       </PopoverAnchor>
