@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2, MapPin, Sparkles } from "lucide-react";
+import { CalendarIcon, Loader2, MapPin, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -46,6 +46,16 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Star, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const formSchema = z.object({
   caseNumber: z.string().min(1, "案號為必填"),
@@ -125,6 +135,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
   const [suggestedSurveyor, setSuggestedSurveyor] = useState<Surveyor | null>(null);
   const [assignmentMode, setAssignmentMode] = useState<string>("sequential");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
     queryKey: ["/api/surveyors"],
@@ -415,6 +426,29 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", `/api/cases/${editCase?.id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      toast({
+        title: "案件已刪除",
+        description: "測量案件已成功刪除",
+      });
+      setConfirmDeleteOpen(false);
+      form.reset();
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "刪除失敗",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const onSubmit = (data: FormValues) => {
     if (isEditing) {
       updateMutation.mutate(data);
@@ -423,7 +457,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
     }
   };
 
-  const isPending = createMutation.isPending || updateMutation.isPending;
+  const isPending = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -759,6 +793,19 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
             )}
 
             <DialogFooter className="gap-2">
+              {isEditing && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="sm:mr-auto"
+                  onClick={() => setConfirmDeleteOpen(true)}
+                  disabled={isPending}
+                  data-testid="button-delete-case"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  刪除案件
+                </Button>
+              )}
               <Button 
                 type="button" 
                 variant="outline" 
@@ -779,6 +826,35 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
           </form>
         </Form>
       </DialogContent>
+
+      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確認刪除</AlertDialogTitle>
+            <AlertDialogDescription>
+              確定要刪除案件「{editCase?.caseNumber}」嗎？此操作無法復原。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-delete-case-cancel">取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                deleteMutation.mutate();
+              }}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-delete-case-confirm"
+            >
+              {deleteMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "刪除"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
