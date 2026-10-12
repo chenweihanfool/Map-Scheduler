@@ -19,6 +19,11 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Health check; deployMarker 用來確認自動部署已更新到最新版本
+  app.get("/api/health", (_req, res) => {
+    res.json({ ok: true, deployMarker: "2026-10-12-deploy-test" });
+  });
+
   // Get all survey cases
   app.get("/api/cases", async (req, res) => {
     try {
