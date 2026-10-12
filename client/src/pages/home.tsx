@@ -19,10 +19,18 @@ import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.8.0";
+const APP_VERSION = "v2.8.1";
 const RELEASE_DATE = "2026-10-12";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.8.1",
+    date: "2026-10-12",
+    items: [
+      "修正地圖視圖下搜尋結果下拉選單被地圖標記遮住的問題，搜尋選單、篩選選單與對話框現在都會顯示在地圖上方",
+      "修正搜尋框清除鈕（×）跑到放大鏡旁邊、把搜尋框往上擠的問題",
+    ],
+  },
   {
     version: "v2.8.0",
     date: "2026-10-12",

@@ -116,7 +116,8 @@ export function CaseMap({ cases, onCaseClick, selectedCaseId, className, dimPast
   })();
 
   return (
-    <div className={`rounded-md overflow-hidden ${className}`}>
+    // isolate：把 Leaflet 圖層的 z-index（400～1000）限制在地圖內，避免蓋住搜尋下拉選單、對話框等浮層
+    <div className={`relative isolate z-0 rounded-md overflow-hidden ${className}`}>
       <MapContainer
         center={defaultCenter}
         zoom={14}
