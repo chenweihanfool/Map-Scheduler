@@ -15,13 +15,23 @@ import { CalendarFilters } from "@/components/calendar-filters";
 import { CaseSearch } from "@/components/case-search";
 import { CaseDetailDialog } from "@/components/case-detail-dialog";
 import { CaseMap } from "@/components/case-map";
+import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog-timeline";
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.6.1";
-const RELEASE_DATE = "2026-10-09";
+const APP_VERSION = "v2.7.0";
+const RELEASE_DATE = "2026-10-12";
 
-const CHANGELOG = [
+const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.7.0",
+    date: "2026-10-12",
+    items: [
+      "日曆點選案件開啟的編輯視窗新增「刪除案件」按鈕，刪除前會再次確認",
+      "更新日誌改為時間軸顯示：左側為版本號與日期，右側內容可展開／折疊（預設只展開最新版本）",
+      "新增 /api/health 端點，可用來確認線上部署的版本",
+    ],
+  },
   {
     version: "v2.6.1",
     date: "2026-10-09",
@@ -424,29 +434,7 @@ export default function Home() {
             </DialogTitle>
             <DialogDescription>各版本新增功能與改善項目摘要</DialogDescription>
           </DialogHeader>
-          <div className="space-y-6 pt-2">
-            {CHANGELOG.map((release) => (
-              <div key={release.version}>
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge variant={release.version === APP_VERSION ? "default" : "secondary"} className="font-mono">
-                    {release.version}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">{release.date}</span>
-                  {release.version === APP_VERSION && (
-                    <Badge variant="outline" className="text-xs text-green-600 border-green-400">最新</Badge>
-                  )}
-                </div>
-                <ul className="space-y-1.5 ml-1">
-                  {release.items.map((item, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <span className="text-primary mt-0.5 shrink-0">•</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
+          <ChangelogTimeline releases={CHANGELOG} currentVersion={APP_VERSION} />
         </DialogContent>
       </Dialog>
     </div>
