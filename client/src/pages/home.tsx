@@ -19,10 +19,19 @@ import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.7.0";
+const APP_VERSION = "v2.8.0";
 const RELEASE_DATE = "2026-10-12";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.8.0",
+    date: "2026-10-12",
+    items: [
+      "寬螢幕版面優化：首頁最大寬度由 1280px 放寬到 1920px，排程區可使用更多畫面空間",
+      "螢幕寬度 1280px 以上時，測量員卡片改為右側固定側欄，捲動日曆時仍可隨時點選篩選",
+      "寬螢幕下日曆每日格子可顯示更多案件（不必展開即可看到 3–4 位測量員的案件），地圖高度改為隨視窗延伸",
+    ],
+  },
   {
     version: "v2.7.0",
     date: "2026-10-12",
@@ -226,7 +235,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-4 h-16">
             <div className="flex items-center gap-3 shrink-0">
               <MapIcon className="h-6 w-6 text-primary" />
@@ -273,8 +282,10 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Card className="mb-6">
+      <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* 寬螢幕（xl 以上）：左側排程、右側測量員側欄；較窄時測量員卡片排在下方 */}
+        <div className="xl:flex xl:items-start xl:gap-6">
+        <Card className="mb-6 xl:mb-0 xl:flex-1 xl:min-w-0">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
@@ -342,14 +353,16 @@ export default function Home() {
                 cases={filteredCases}
                 onCaseClick={handleCaseDetail}
                 selectedCaseId={selectedMapCaseId}
-                className="h-[600px]"
+                className="h-[600px] xl:h-[calc(100vh-17rem)] xl:min-h-[600px]"
                 dimPastCases={dimPastCases}
               />
             )}
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-6">
+        <aside className="xl:w-64 xl:shrink-0 xl:sticky xl:top-[5.5rem] xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
+        <h2 className="hidden xl:block text-sm font-medium text-muted-foreground mb-2">測量員</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-1 gap-4 xl:gap-2 mb-6">
           {surveyorsList.map((surveyor, index) => {
             const isSelected = surveyorFilter === surveyor.name;
             const isNextAssignee = surveyor.id === nextAssigneeId;
@@ -369,14 +382,14 @@ export default function Home() {
                 onClick={() => handleSurveyorCardClick(surveyor.name)}
                 data-testid={`card-surveyor-${surveyor.id}`}
               >
-                <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+                <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2 xl:p-3 xl:pb-1">
                   <div className="min-w-0">
                     <CardTitle className="text-sm font-medium truncate">{surveyor.name}</CardTitle>
                     <p className="text-xs text-muted-foreground">{surveyor.businessAttribute}</p>
                   </div>
                   <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 </CardHeader>
-                <CardContent>
+                <CardContent className="xl:px-3 xl:pb-2">
                   <div className="flex items-center justify-end gap-2 min-h-5 flex-wrap">
                     {isEligible && (
                       isPointsMode ? (
@@ -403,6 +416,8 @@ export default function Home() {
               </Card>
             );
           })}
+        </div>
+        </aside>
         </div>
 
         <div className="mt-6 text-center text-sm text-muted-foreground">
