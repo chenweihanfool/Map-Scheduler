@@ -42,7 +42,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import { CASE_TYPES, type SurveyCase, type Surveyor, type SystemSettings, type SurveyorLeave, type CaseTypeRecord, RECEIVE_WORDS } from "@shared/schema";
+import { CASE_TYPES, type SurveyCase, type Surveyor, type SystemSettings, type SurveyorLeave, type CaseTypeRecord, type Agent, RECEIVE_WORDS } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Star, Info } from "lucide-react";
@@ -152,6 +152,12 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
 
   const { data: dynamicCaseTypes = [] } = useQuery<CaseTypeRecord[]>({
     queryKey: ["/api/case-types"],
+    enabled: open,
+  });
+
+  // 代理人資訊（系統設定維護），代理人欄位可直接選，也可自行輸入
+  const { data: agentsList = [] } = useQuery<Agent[]>({
+    queryKey: ["/api/agents"],
     enabled: open,
   });
 
@@ -644,11 +650,20 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                     <FormControl>
                       <Input
                         placeholder="例: 吳月雲（選填）"
+                        list="agent-options"
+                        autoComplete="off"
                         {...field}
                         value={field.value || ""}
                         data-testid="input-agent"
                       />
                     </FormControl>
+                    <datalist id="agent-options">
+                      {agentsList.map((a) => (
+                        <option key={a.id} value={a.name}>
+                          {[a.tel, a.mobile].filter(Boolean).join("　")}
+                        </option>
+                      ))}
+                    </datalist>
                     <FormMessage />
                   </FormItem>
                 )}

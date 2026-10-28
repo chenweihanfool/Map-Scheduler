@@ -7,6 +7,7 @@ import {
   type SurveyorLeave, type InsertSurveyorLeave,
   type CoordinateStatus,
   type CaseTypeRecord, type InsertCaseType,
+  type Agent, type InsertAgent, agents,
   DEFAULT_CASE_TYPES
 } from "@shared/schema";
 import { db } from "./db";
@@ -48,6 +49,10 @@ export interface IStorage {
   updateCaseType(id: string, data: Partial<InsertCaseType>): Promise<CaseTypeRecord | undefined>;
   deleteCaseType(id: string): Promise<boolean>;
   initializeDefaultCaseTypes(): Promise<void>;
+  getAllAgents(): Promise<Agent[]>;
+  createAgent(data: InsertAgent): Promise<Agent>;
+  updateAgent(id: string, data: Partial<InsertAgent>): Promise<Agent | undefined>;
+  deleteAgent(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -281,6 +286,27 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCaseType(id: string): Promise<boolean> {
     const result = await db.delete(caseTypes).where(eq(caseTypes.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getAllAgents(): Promise<Agent[]> {
+    return db.select().from(agents).orderBy(asc(agents.sortOrder), asc(agents.name));
+  }
+
+  async createAgent(data: InsertAgent): Promise<Agent> {
+    const all = await this.getAllAgents();
+    const maxOrder = all.reduce((m, a) => Math.max(m, a.sortOrder), -1);
+    const [agent] = await db.insert(agents).values({ ...data, sortOrder: data.sortOrder ?? maxOrder + 1 }).returning();
+    return agent;
+  }
+
+  async updateAgent(id: string, data: Partial<InsertAgent>): Promise<Agent | undefined> {
+    const [agent] = await db.update(agents).set(data).where(eq(agents.id, id)).returning();
+    return agent || undefined;
+  }
+
+  async deleteAgent(id: string): Promise<boolean> {
+    const result = await db.delete(agents).where(eq(agents.id, id)).returning();
     return result.length > 0;
   }
 

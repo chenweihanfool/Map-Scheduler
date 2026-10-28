@@ -11,7 +11,9 @@ import {
   insertCaseTypeSchema,
   CASE_TYPES,
   type CoordinateStatus,
-  type SurveyCase
+  type SurveyCase,
+  insertAgentSchema,
+  updateAgentSchema,
 } from "@shared/schema";
 import { processCoordinateLookup, lookupCoordinates } from "./coordinate-service";
 
@@ -642,6 +644,58 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting case type:", error);
       res.status(500).json({ error: "Failed to delete case type" });
+    }
+  });
+
+  // ===== Agents API（代理人資訊）=====
+
+  app.get("/api/agents", async (_req, res) => {
+    try {
+      res.json(await storage.getAllAgents());
+    } catch (error) {
+      console.error("Error fetching agents:", error);
+      res.status(500).json({ error: "Failed to fetch agents" });
+    }
+  });
+
+  app.post("/api/agents", async (req, res) => {
+    try {
+      const validationResult = insertAgentSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ error: "Validation failed", details: validationResult.error.flatten() });
+      }
+      res.status(201).json(await storage.createAgent(validationResult.data));
+    } catch (error: any) {
+      if (error?.code === "23505") return res.status(409).json({ error: "代理人名稱已存在" });
+      console.error("Error creating agent:", error);
+      res.status(500).json({ error: "Failed to create agent" });
+    }
+  });
+
+  app.patch("/api/agents/:id", async (req, res) => {
+    try {
+      const validationResult = updateAgentSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ error: "Validation failed", details: validationResult.error.flatten() });
+      }
+      const agent = await storage.updateAgent(req.params.id, validationResult.data);
+      if (!agent) return res.status(404).json({ error: "Agent not found" });
+      res.json(agent);
+    } catch (error: any) {
+      if (error?.code === "23505") return res.status(409).json({ error: "代理人名稱已存在" });
+      console.error("Error updating agent:", error);
+      res.status(500).json({ error: "Failed to update agent" });
+    }
+  });
+
+  app.delete("/api/agents/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteAgent(req.params.id);
+      if (!deleted) return res.status(404).json({ error: "Agent not found" });
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting agent:", error);
+      res.status(500).json({ error: "Failed to delete agent" });
     }
   });
 

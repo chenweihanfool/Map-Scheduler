@@ -1,6 +1,7 @@
 import { pool } from "./db";
+import { AGENT_SEED } from "./agent-seed";
 
-// 啟動時自動補上新增的欄位（v2.9.0 收件日期、收件字；v2.10.0 代理人），並把舊格式案號拆回原位。
+// 啟動時自動補上新增的欄位（v2.9.0 收件日期、收件字；v2.10.0 代理人）與資料表（v2.11.0 代理人資訊），並把舊格式案號拆回原位。
 //
 // 不用 drizzle-kit push：資料表另有刻意不宣告的 geom 欄位（見 shared/schema.ts），
 // push 可能會把它刪掉。這裡只做「欄位不存在才新增」與「只改符合舊格式的列」，重複執行不會有影響。
@@ -32,5 +33,32 @@ export async function upgradeReceiveFields(): Promise<void> {
     console.log(`[schema] 收件欄位檢查完成，拆解舊格式案號 ${result.rowCount ?? 0} 筆`);
   } catch (error) {
     console.error("收件欄位升級失敗，請手動執行 server/schema-upgrade.ts 內的 SQL：", error);
+  }
+}
+
+// v2.11.0 代理人資訊：資料表不存在才建立；表是空的時候放入「測量案件排程」的代理人通訊錄（只放一次）
+export async function upgradeAgents(): Promise<void> {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS mapscheduler.agents (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        name text NOT NULL UNIQUE,
+        tel text,
+        fax text,
+        mobile text,
+        sort_order integer NOT NULL DEFAULT 0,
+        created_at timestamp DEFAULT now()
+      )`);
+    const { rows } = await pool.query("SELECT count(*)::int AS n FROM mapscheduler.agents");
+    if (rows[0].n > 0) return;
+    for (const [i, a] of AGENT_SEED.entries()) {
+      await pool.query(
+        "INSERT INTO mapscheduler.agents (name, tel, fax, mobile, sort_order) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (name) DO NOTHING",
+        [a.name, a.tel || null, a.fax || null, a.mobile || null, i],
+      );
+    }
+    console.log(`[schema] 代理人資訊：放入初始資料 ${AGENT_SEED.length} 筆`);
+  } catch (error) {
+    console.error("代理人資訊資料表建立失敗：", error);
   }
 }
