@@ -19,10 +19,17 @@ import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.8.1";
-const RELEASE_DATE = "2026-10-12";
+const APP_VERSION = "v2.8.2";
+const RELEASE_DATE = "2026-10-28";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.8.2",
+    date: "2026-10-28",
+    items: [
+      "開放其他網頁（例如測量案件排程）讀取案件與測量員清單，只開放讀取，不開放新增、修改、刪除",
+    ],
+  },
   {
     version: "v2.8.1",
     date: "2026-10-12",

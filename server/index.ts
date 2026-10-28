@@ -22,6 +22,12 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+// 允許「測量案件排程」等其他網頁讀取案件與測量員清單（只開放 GET，不開放新增、修改、刪除）
+app.use(["/api/cases", "/api/surveyors"], (req, res, next) => {
+  if (req.method === "GET") res.setHeader("Access-Control-Allow-Origin", "*");
+  next();
+});
+
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
