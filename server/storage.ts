@@ -76,6 +76,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         or(
           ilike(surveyCases.caseNumber, searchPattern),
+          ilike(surveyCases.receiveWord, searchPattern),
           ilike(surveyCases.landParcel, searchPattern),
           ilike(surveyCases.owner, searchPattern),
           ilike(surveyCases.surveyor, searchPattern)

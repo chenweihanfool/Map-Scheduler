@@ -19,10 +19,20 @@ import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.8.2";
+const APP_VERSION = "v2.9.0";
 const RELEASE_DATE = "2026-10-28";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.9.0",
+    date: "2026-10-28",
+    items: [
+      "新增、編輯案件時，案號上方新增「收件日期」與「收件字」",
+      "收件字可直接輸入或從清單選擇（80通數土、81通圖土、82通建），輸入 81 會自動帶出 81通圖土",
+      "舊格式案號（例 1150914-81-2400）自動拆回原位：收件日期 115 年 9 月 14 日、收件字 81通圖土、案號 2400",
+      "案件列表與案件詳細資料顯示收件日期（民國年）與收件字；搜尋也可找收件字",
+    ],
+  },
   {
     version: "v2.8.2",
     date: "2026-10-28",

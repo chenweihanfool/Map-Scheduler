@@ -46,6 +46,13 @@ export const DEFAULT_CASE_TYPES = [
 
 export const CASE_TYPES = DEFAULT_CASE_TYPES;
 
+// Receive word options (收件字)：輸入前兩碼（例 81）即可帶出完整字號
+export const RECEIVE_WORDS = [
+  "80通數土",
+  "81通圖土",
+  "82通建",
+] as const;
+
 export type CaseType = string;
 
 // Coordinate status options (座標狀態)
@@ -72,6 +79,8 @@ export type CoordinateStatus = typeof COORDINATE_STATUSES[number];
 // checking whether anything still depends on it.
 export const surveyCases = pgTable("survey_cases", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  receiveDate: text("receive_date"), // 收件日期 (YYYY-MM-DD format)
+  receiveWord: text("receive_word"), // 收件字，例 81通圖土
   caseNumber: text("case_number").notNull(), // 案號
   caseType: text("case_type").notNull().default("鑑界"), // 案件類型
   landParcel: text("land_parcel").notNull(), // 地段地號
