@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import type { SurveyCase } from "@shared/schema";
+import { caseLabel } from "@/lib/receive";
 
 interface CaseSearchProps {
   onCaseSelect: (caseItem: SurveyCase) => void;
@@ -124,14 +125,14 @@ export function CaseSearch({ onCaseSelect }: CaseSearchProps) {
                 {searchResults.map((caseItem) => (
                   <CommandItem
                     key={caseItem.id}
-                    value={caseItem.caseNumber}
+                    value={caseItem.id}
                     onSelect={() => handleSelect(caseItem)}
                     className="cursor-pointer"
                     data-testid={`search-result-${caseItem.id}`}
                   >
                     <div className="flex flex-col gap-1 w-full">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium">{caseItem.caseNumber}</span>
+                        <span className="font-medium">{caseLabel(caseItem)}</span>
                         <Badge variant="secondary" className="text-xs">
                           {caseItem.caseType}
                         </Badge>

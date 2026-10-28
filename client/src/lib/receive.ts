@@ -17,6 +17,11 @@ export function completeReceiveWord(value: string): string {
   return RECEIVE_WORDS.find((w) => w.startsWith(v)) ?? value;
 }
 
+// 案號可留空（案件有時還沒收件），顯示時改用「未收件」
+export function caseLabel(c: { caseNumber?: string | null }): string {
+  return c.caseNumber?.trim() || "（未收件）";
+}
+
 // 「收件日期・收件字」的簡短說明，沒有資料時回傳空字串
 export function receiveSummary(c: { receiveDate?: string | null; receiveWord?: string | null }): string {
   return [formatRocDate(c.receiveDate), c.receiveWord ?? ""].filter(Boolean).join("・");

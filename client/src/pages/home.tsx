@@ -19,10 +19,18 @@ import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.9.0";
+const APP_VERSION = "v2.9.1";
 const RELEASE_DATE = "2026-10-28";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.9.1",
+    date: "2026-10-28",
+    items: [
+      "案號改為選填，還沒收件的案件可以先建立；收件日期、收件字同樣可留空",
+      "沒有案號的案件在列表、地圖、搜尋、報表等處顯示「（未收件）」",
+    ],
+  },
   {
     version: "v2.9.0",
     date: "2026-10-28",

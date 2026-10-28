@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { format, parseISO } from "date-fns";
 import { zhTW } from "date-fns/locale";
+import { caseLabel } from "@/lib/receive";
 
 interface ConflictCase {
   id: string;
@@ -557,7 +558,7 @@ export default function LeavesPage() {
                 <div className="max-h-40 overflow-y-auto space-y-1 mt-2">
                   {pendingConflicts.map(c => (
                     <div key={c.id} className="text-xs p-2 bg-muted rounded border">
-                      <span className="font-medium">{c.caseNumber}</span>
+                      <span className="font-medium">{caseLabel(c)}</span>
                       {" · "}{c.surveyDate} {c.scheduledTime}
                       {" · "}{c.landParcel}
                     </div>

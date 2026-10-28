@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import type { SurveyCase } from "@shared/schema";
-import { formatRocDate } from "@/lib/receive";
+import { caseLabel, formatRocDate } from "@/lib/receive";
 
 interface CaseDetailDialogProps {
   open: boolean;
@@ -66,7 +66,7 @@ export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit }: CaseD
         <DialogHeader>
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <DialogTitle className="text-xl">{caseData.caseNumber}</DialogTitle>
+              <DialogTitle className="text-xl">{caseLabel(caseData)}</DialogTitle>
               {(caseData.receiveDate || caseData.receiveWord) && (
                 <p className="text-sm text-muted-foreground mt-1" data-testid="text-receive-info">
                   收件 {[formatRocDate(caseData.receiveDate, "long"), caseData.receiveWord].filter(Boolean).join("・")}
