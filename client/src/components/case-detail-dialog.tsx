@@ -117,6 +117,16 @@ export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit }: CaseD
               </div>
             )}
 
+            {caseData.agent && (
+              <div className="flex items-start gap-3">
+                <User className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium">代理人</p>
+                  <p className="text-sm text-muted-foreground" data-testid="text-agent">{caseData.agent}</p>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-start gap-3">
               <Calendar className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
               <div>
