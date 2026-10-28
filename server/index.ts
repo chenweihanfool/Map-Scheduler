@@ -2,9 +2,12 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { integrationMiddleware } from "./integration";
 
 const app = express();
 const httpServer = createServer(app);
+
+app.use(integrationMiddleware());
 
 declare module "http" {
   interface IncomingMessage {

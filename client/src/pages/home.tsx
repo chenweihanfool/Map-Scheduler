@@ -19,10 +19,18 @@ import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.8.1";
-const RELEASE_DATE = "2026-10-12";
+const APP_VERSION = "v2.9.0";
+const RELEASE_DATE = "2026-10-28";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.9.0",
+    date: "2026-10-28",
+    items: [
+      "開放其他專案介接 API：可設定允許跨網域呼叫的網域（CORS 白名單），外部寫入需帶 API 金鑰，本站畫面操作不受影響",
+      "新增介接說明文件 docs/api.md",
+    ],
+  },
   {
     version: "v2.8.1",
     date: "2026-10-12",

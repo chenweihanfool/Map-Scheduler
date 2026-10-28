@@ -36,6 +36,12 @@ DATABASE_URL = postgresql://PostgreSQL_toufen:<密碼>@toufen.postgres.database.
 NODE_ENV = production
 ```
 
+要讓其他專案介接時，再加上（可選，說明見 `docs/api.md`）：
+```
+CORS_ALLOWED_ORIGINS = https://其他專案網域
+INTEGRATION_API_KEY = <夠長的亂數>
+```
+
 ## 3. 確認 Azure PostgreSQL 防火牆放行 Render
 
 Render 免費方案沒有固定的對外 IP（要付費才有），沒辦法在 Azure 那邊
