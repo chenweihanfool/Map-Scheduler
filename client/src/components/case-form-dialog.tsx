@@ -23,6 +23,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { completeReceiveWord, formatRocDate } from "@/lib/receive";
 import { Textarea } from "@/components/ui/textarea";
 import { SectionCombobox } from "@/components/section-combobox";
 import { Calendar } from "@/components/ui/calendar";
@@ -41,7 +42,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import { CASE_TYPES, type SurveyCase, type Surveyor, type SystemSettings, type SurveyorLeave, type CaseTypeRecord } from "@shared/schema";
+import { CASE_TYPES, type SurveyCase, type Surveyor, type SystemSettings, type SurveyorLeave, type CaseTypeRecord, RECEIVE_WORDS } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Star, Info } from "lucide-react";
@@ -58,6 +59,8 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const formSchema = z.object({
+  receiveDate: z.string().optional(),
+  receiveWord: z.string().optional(),
   caseNumber: z.string().min(1, "案號為必填"),
   caseType: z.string().min(1, "案件類型為必填"),
   section: z.string().min(1, "地段為必填"),
@@ -199,6 +202,8 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      receiveDate: editCase?.receiveDate ?? "",
+      receiveWord: editCase?.receiveWord ?? "",
       caseNumber: editCase?.caseNumber ?? "",
       caseType: editCase?.caseType ?? "鑑界",
       section: getDefaultSection(),
@@ -319,6 +324,8 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
       }
       
       form.reset({
+        receiveDate: editCase?.receiveDate ?? "",
+        receiveWord: editCase?.receiveWord ?? "",
         caseNumber: editCase?.caseNumber ?? "",
         caseType: defaultCaseType,
         section: parsed.section,
@@ -480,13 +487,62 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
+                name="receiveDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>收件日期</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} data-testid="input-receive-date" />
+                    </FormControl>
+                    {field.value && (
+                      <p className="text-xs text-muted-foreground">{formatRocDate(field.value, "long")}</p>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="receiveWord"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>收件字</FormLabel>
+                    <FormControl>
+                      <Input
+                        list="receive-word-options"
+                        placeholder="輸入 81 或從清單選擇"
+                        autoComplete="off"
+                        {...field}
+                        onChange={(e) => {
+                          // 只在往前輸入時補全，刪除時不補，才能把收件字清掉或改掉
+                          const v = e.target.value;
+                          field.onChange(v.length > (field.value?.length ?? 0) ? completeReceiveWord(v) : v);
+                        }}
+                        data-testid="input-receive-word"
+                      />
+                    </FormControl>
+                    <datalist id="receive-word-options">
+                      {RECEIVE_WORDS.map((w) => (
+                        <option key={w} value={w} />
+                      ))}
+                    </datalist>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
                 name="caseNumber"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>案號 <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
                       <Input 
-                        placeholder="例: 114-0001" 
+                        placeholder="例: 2400" 
                         {...field} 
                         data-testid="input-case-number"
                       />
