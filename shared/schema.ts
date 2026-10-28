@@ -198,3 +198,24 @@ export const insertCaseTypeSchema = createInsertSchema(caseTypes).omit({
 
 export type InsertCaseType = z.infer<typeof insertCaseTypeSchema>;
 export type CaseTypeRecord = typeof caseTypes.$inferSelect;
+
+// Agents table (代理人資訊)：代理人通訊錄，系統設定裡維護；新增案件時可直接選
+export const agents = pgTable("agents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(), // 代理人
+  tel: text("tel"), // 電話
+  fax: text("fax"), // 傳真
+  mobile: text("mobile"), // 手機
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAgentSchema = createInsertSchema(agents).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const updateAgentSchema = insertAgentSchema.partial();
+
+export type InsertAgent = z.infer<typeof insertAgentSchema>;
+export type Agent = typeof agents.$inferSelect;

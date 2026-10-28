@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { AgentsCard } from "@/components/agents-card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { CASE_TYPES, type SystemSettings, type CaseTypeRecord } from "@shared/schema";
@@ -290,6 +291,8 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          <AgentsCard />
 
           <div className="flex justify-between gap-4">
             <Link href="/surveyors">

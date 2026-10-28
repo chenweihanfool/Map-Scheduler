@@ -19,10 +19,19 @@ import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.10.0";
+const APP_VERSION = "v2.11.0";
 const RELEASE_DATE = "2026-10-28";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.11.0",
+    date: "2026-10-28",
+    items: [
+      "系統設定新增「代理人資訊」：代理人的電話、傳真、手機，可新增、修改、刪除",
+      "內建「測量案件排程」的代理人通訊錄 17 筆",
+      "新增、編輯案件時，代理人欄位可直接從代理人資訊選（也可自行輸入）",
+    ],
+  },
   {
     version: "v2.10.0",
     date: "2026-10-28",
