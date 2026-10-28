@@ -1,6 +1,6 @@
 import { pool } from "./db";
 
-// 啟動時自動補上 v2.9.0 新增的「收件日期」「收件字」欄位，並把舊格式案號拆回原位。
+// 啟動時自動補上新增的欄位（v2.9.0 收件日期、收件字；v2.10.0 代理人），並把舊格式案號拆回原位。
 //
 // 不用 drizzle-kit push：資料表另有刻意不宣告的 geom 欄位（見 shared/schema.ts），
 // push 可能會把它刪掉。這裡只做「欄位不存在才新增」與「只改符合舊格式的列」，重複執行不會有影響。
@@ -17,6 +17,7 @@ export async function upgradeReceiveFields(): Promise<void> {
   try {
     await pool.query("ALTER TABLE mapscheduler.survey_cases ADD COLUMN IF NOT EXISTS receive_date text");
     await pool.query("ALTER TABLE mapscheduler.survey_cases ADD COLUMN IF NOT EXISTS receive_word text");
+    await pool.query("ALTER TABLE mapscheduler.survey_cases ADD COLUMN IF NOT EXISTS agent text");
     // SET 內的運算都使用更新前的值，所以 case_number 會在最後才被改成末段號碼
     const result = await pool.query(`
       UPDATE mapscheduler.survey_cases SET

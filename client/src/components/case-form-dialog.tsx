@@ -66,6 +66,7 @@ const formSchema = z.object({
   section: z.string().min(1, "地段為必填"),
   lotNumber: z.string().min(1, "地號為必填"),
   owner: z.string().optional(),
+  agent: z.string().optional(),
   surveyor: z.string().min(1, "測量員為必填"),
   surveyDate: z.string().min(1, "日期為必填"),
   scheduledTime: z.string().min(1, "排件時間為必填"),
@@ -331,6 +332,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
         section: parsed.section,
         lotNumber: parsed.lotNumber,
         owner: editCase?.owner ?? "",
+        agent: editCase?.agent ?? "",
         surveyor: defaultSurveyor,
         surveyDate,
         scheduledTime,
@@ -613,24 +615,45 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
               />
             </div>
 
-            <FormField
-              control={form.control}
-              name="owner"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>所有權人</FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="例: 王大明" 
-                      {...field}
-                      value={field.value || ""}
-                      data-testid="input-owner"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="owner"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>所有權人</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="例: 王大明" 
+                        {...field}
+                        value={field.value || ""}
+                        data-testid="input-owner"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="agent"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>代理人</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="例: 吳月雲（選填）"
+                        {...field}
+                        value={field.value || ""}
+                        data-testid="input-agent"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             {recommendations.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-3 space-y-2" data-testid="recommendation-panel">

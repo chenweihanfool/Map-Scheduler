@@ -79,6 +79,7 @@ export class DatabaseStorage implements IStorage {
           ilike(surveyCases.receiveWord, searchPattern),
           ilike(surveyCases.landParcel, searchPattern),
           ilike(surveyCases.owner, searchPattern),
+          ilike(surveyCases.agent, searchPattern),
           ilike(surveyCases.surveyor, searchPattern)
         )
       )
