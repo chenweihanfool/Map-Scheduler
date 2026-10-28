@@ -6,6 +6,7 @@ import { MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { SurveyCase } from "@shared/schema";
+import { caseLabel } from "@/lib/receive";
 
 interface CaseMapProps {
   cases: SurveyCase[];
@@ -148,7 +149,7 @@ export function CaseMap({ cases, onCaseClick, selectedCaseId, className, dimPast
             >
               <Popup>
                 <div className="min-w-[200px]">
-                  <p className="font-semibold mb-1">{caseItem.caseNumber}</p>
+                  <p className="font-semibold mb-1">{caseLabel(caseItem)}</p>
                   <p className="text-sm text-muted-foreground mb-1">{caseItem.landParcel}</p>
                   <div className="flex items-center gap-2 mb-2">
                     <Badge variant="secondary" className="text-xs">{caseItem.caseType}</Badge>

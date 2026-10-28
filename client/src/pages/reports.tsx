@@ -28,6 +28,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { UNKNOWN_TOWNSHIP, getTownship } from "@/lib/land-sections";
 import { TOWNSHIPS as LAND_TOWNSHIPS } from "@shared/land-sections";
 import type { CaseTypeRecord, SurveyCase, Surveyor } from "@shared/schema";
+import { caseLabel } from "@/lib/receive";
 
 const UNASSIGNED = "（未指派）";
 const TOWNSHIPS = [...LAND_TOWNSHIPS, UNKNOWN_TOWNSHIP];
@@ -425,7 +426,7 @@ export default function ReportsPage() {
                             <td className="text-right">{i + 1}</td>
                             <td className="whitespace-nowrap">{c.surveyDate}</td>
                             <td>{c.scheduledTime}</td>
-                            <td>{c.caseNumber}</td>
+                            <td>{caseLabel(c)}</td>
                             <td>{c.caseType}</td>
                             <td>{c.landParcel}</td>
                             <td className="whitespace-nowrap">{getTownship(c.landParcel)}</td>

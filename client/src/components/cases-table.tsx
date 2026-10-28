@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { receiveSummary } from "@/lib/receive";
+import { caseLabel, receiveSummary } from "@/lib/receive";
 import type { SurveyCase } from "@shared/schema";
 
 interface CasesTableProps {
@@ -273,7 +273,7 @@ export function CasesTable({ cases, isLoading, onEdit, dimPastCases }: CasesTabl
                 data-testid={`row-case-${surveyCase.id}`}
               >
                 <TableCell className="font-medium" data-testid={`text-case-number-${surveyCase.id}`}>
-                  {surveyCase.caseNumber}
+                  {caseLabel(surveyCase)}
                   {receiveSummary(surveyCase) && (
                     <div className="text-xs font-normal text-muted-foreground">{receiveSummary(surveyCase)}</div>
                   )}

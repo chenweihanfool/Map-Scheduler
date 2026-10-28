@@ -23,7 +23,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { completeReceiveWord, formatRocDate } from "@/lib/receive";
+import { caseLabel, completeReceiveWord, formatRocDate } from "@/lib/receive";
 import { Textarea } from "@/components/ui/textarea";
 import { SectionCombobox } from "@/components/section-combobox";
 import { Calendar } from "@/components/ui/calendar";
@@ -61,7 +61,7 @@ import {
 const formSchema = z.object({
   receiveDate: z.string().optional(),
   receiveWord: z.string().optional(),
-  caseNumber: z.string().min(1, "案號為必填"),
+  caseNumber: z.string(), // 可留空：案件有時還沒收件
   caseType: z.string().min(1, "案件類型為必填"),
   section: z.string().min(1, "地段為必填"),
   lotNumber: z.string().min(1, "地號為必填"),
@@ -539,10 +539,10 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                 name="caseNumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>案號 <span className="text-destructive">*</span></FormLabel>
+                    <FormLabel>案號</FormLabel>
                     <FormControl>
                       <Input 
-                        placeholder="例: 2400" 
+                        placeholder="例: 2400（未收件可留空）" 
                         {...field} 
                         data-testid="input-case-number"
                       />
@@ -888,7 +888,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
           <AlertDialogHeader>
             <AlertDialogTitle>確認刪除</AlertDialogTitle>
             <AlertDialogDescription>
-              確定要刪除案件「{editCase?.caseNumber}」嗎？此操作無法復原。
+              確定要刪除案件「{editCase ? caseLabel(editCase) : ""}」嗎？此操作無法復原。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
