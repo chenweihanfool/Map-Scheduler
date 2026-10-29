@@ -1,12 +1,12 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { ArrowLeft, CalendarOff, Plus, Pencil, Trash2, AlertTriangle, Search } from "lucide-react";
+import { ArrowLeft, CalendarOff, Plus, Pencil, Trash2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { type Surveyor, type SurveyorLeave } from "@shared/schema";
 import { useMemo, useState } from "react";
 import {
@@ -28,7 +28,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -38,15 +37,7 @@ import {
 } from "@/components/ui/select";
 import { format, parseISO } from "date-fns";
 import { zhTW } from "date-fns/locale";
-import { caseLabel } from "@/lib/receive";
-
-interface ConflictCase {
-  id: string;
-  caseNumber: string;
-  surveyDate: string;
-  scheduledTime: string;
-  landParcel: string;
-}
+import { LeaveForm, leaveStyle, invalidateLeaves } from "@/components/leave-form";
 
 function formatDateRange(start: string, end: string): string {
   if (!start || !end) return "";
@@ -64,26 +55,11 @@ function formatDateRange(start: string, end: string): string {
   }
 }
 
-type LeaveSubmitData = {
-  surveyorId: string;
-  surveyorName: string;
-  startDatetime: string;
-  endDatetime: string;
-  reason?: string;
-};
-
 type StatusFilter = "active" | "past" | "all";
 type SortOrder = "start-desc" | "start-asc" | "created-desc";
 
-// 頁面一律抓含已結束的完整清單，狀態篩選在前端做；
-// 月曆等其他元件仍用 /api/leaves（只含未結束），所以異動後兩個都要更新
+// 頁面一律抓含已結束的完整清單，狀態篩選在前端做（異動後由 invalidateLeaves 一併更新）
 const LEAVES_ALL_KEY = "/api/leaves?includePast=true";
-
-function invalidateLeaves() {
-  queryClient.invalidateQueries({
-    predicate: (query) => String(query.queryKey[0]).startsWith("/api/leaves"),
-  });
-}
 
 function nowDatetime(): string {
   return format(new Date(), "yyyy-MM-dd HH:mm");
@@ -94,7 +70,7 @@ function getLeaveStatus(leave: SurveyorLeave, now: string): { label: string; cla
     return { label: "已結束", className: "text-muted-foreground" };
   }
   if (leave.startDatetime <= now) {
-    return { label: "請假中", className: "border-amber-500 text-amber-600 dark:text-amber-400" };
+    return { label: "進行中", className: "border-amber-500 text-amber-600 dark:text-amber-400" };
   }
   return { label: "即將開始", className: "border-primary text-primary" };
 }
@@ -105,25 +81,12 @@ export default function LeavesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingLeave, setDeletingLeave] = useState<SurveyorLeave | null>(null);
-  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
-  const [pendingConflicts, setPendingConflicts] = useState<ConflictCase[]>([]);
-  const [pendingSubmitData, setPendingSubmitData] = useState<LeaveSubmitData | null>(null);
   const [editingLeave, setEditingLeave] = useState<SurveyorLeave | null>(null);
 
   const [surveyorFilter, setSurveyorFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [keyword, setKeyword] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("start-desc");
-
-  const [formData, setFormData] = useState({
-    surveyorId: "",
-    surveyorName: "",
-    startDate: "",
-    startTime: "08:00",
-    endDate: "",
-    endTime: "17:00",
-    reason: "",
-  });
 
   const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
     queryKey: ["/api/surveyors"],
@@ -141,7 +104,7 @@ export default function LeavesPage() {
       if (statusFilter === "active" && leave.endDatetime < now) return false;
       if (statusFilter === "past" && leave.endDatetime >= now) return false;
       if (q) {
-        const haystack = `${leave.surveyorName} ${leave.reason || ""} ${leave.startDatetime} ${leave.endDatetime}`.toLowerCase();
+        const haystack = `${leave.surveyorName} ${leave.leaveType || ""} ${leave.reason || ""} ${leave.startDatetime} ${leave.endDatetime}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       return true;
@@ -163,48 +126,6 @@ export default function LeavesPage() {
     setKeyword("");
   };
 
-  const saveMutation = useMutation({
-    mutationFn: async (params: { data: LeaveSubmitData | null; force?: boolean; editingId?: string }) => {
-      const { data, force, editingId } = params;
-      const base = editingId ? `/api/leaves/${editingId}` : "/api/leaves";
-      const url = force ? `${base}?force=true` : base;
-      const response = await fetch(url, {
-        method: editingId ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) {
-        const json = await response.json();
-        if (response.status === 409 && json.error === "CONFLICT") {
-          const err = new Error(json.message) as Error & { conflicts: ConflictCase[] };
-          err.conflicts = json.conflicts;
-          throw err;
-        }
-        throw new Error(json.error || (editingId ? "更新失敗" : "登記失敗"));
-      }
-      return response.json();
-    },
-    onSuccess: (_data, variables) => {
-      invalidateLeaves();
-      toast({ title: variables.editingId ? "請假已更新" : "請假已登記" });
-      setDialogOpen(false);
-      setConflictDialogOpen(false);
-      setPendingConflicts([]);
-      setPendingSubmitData(null);
-      setEditingLeave(null);
-      resetForm();
-    },
-    onError: (error: Error & { conflicts?: ConflictCase[] }) => {
-      if (error.conflicts && error.conflicts.length > 0) {
-        setPendingConflicts(error.conflicts);
-        setDialogOpen(false);
-        setConflictDialogOpen(true);
-      } else {
-        toast({ title: editingLeave ? "更新失敗" : "登記失敗", description: error.message, variant: "destructive" });
-      }
-    },
-  });
-
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       return apiRequest("DELETE", `/api/leaves/${id}`);
@@ -220,86 +141,19 @@ export default function LeavesPage() {
     },
   });
 
-  const resetForm = () => {
-    setFormData({
-      surveyorId: "",
-      surveyorName: "",
-      startDate: "",
-      startTime: "08:00",
-      endDate: "",
-      endTime: "17:00",
-      reason: "",
-    });
-  };
-
   const handleAdd = () => {
     setEditingLeave(null);
-    resetForm();
     setDialogOpen(true);
   };
 
   const handleEdit = (leave: SurveyorLeave) => {
-    const [startDate, startTime] = leave.startDatetime.split(" ");
-    const [endDate, endTime] = leave.endDatetime.split(" ");
     setEditingLeave(leave);
-    setFormData({
-      surveyorId: leave.surveyorId,
-      surveyorName: leave.surveyorName,
-      startDate: startDate || "",
-      startTime: startTime || "08:00",
-      endDate: endDate || "",
-      endTime: endTime || "17:00",
-      reason: leave.reason || "",
-    });
     setDialogOpen(true);
   };
 
   const handleDelete = (leave: SurveyorLeave) => {
     setDeletingLeave(leave);
     setDeleteDialogOpen(true);
-  };
-
-  const handleSurveyorChange = (surveyorId: string) => {
-    const surveyor = surveyorsList.find(s => s.id === surveyorId);
-    setFormData(prev => ({
-      ...prev,
-      surveyorId,
-      surveyorName: surveyor?.name || "",
-    }));
-  };
-
-  const handleSubmit = () => {
-    if (!formData.surveyorId) {
-      toast({ title: "請選擇測量員", variant: "destructive" });
-      return;
-    }
-    if (!formData.startDate || !formData.endDate) {
-      toast({ title: "請選擇請假日期", variant: "destructive" });
-      return;
-    }
-    const startDatetime = `${formData.startDate} ${formData.startTime}`;
-    const endDatetime = `${formData.endDate} ${formData.endTime}`;
-    if (startDatetime >= endDatetime) {
-      toast({ title: "開始時間必須早於結束時間", variant: "destructive" });
-      return;
-    }
-
-    const submitData: LeaveSubmitData = {
-      surveyorId: formData.surveyorId,
-      surveyorName: formData.surveyorName,
-      startDatetime,
-      endDatetime,
-      // 編輯時要能把原因清空，所以送空字串而不是省略欄位
-      reason: editingLeave ? formData.reason : formData.reason || undefined,
-    };
-    setPendingSubmitData(submitData);
-    saveMutation.mutate({ data: submitData, force: false, editingId: editingLeave?.id });
-  };
-
-  const handleForceSubmit = () => {
-    if (pendingSubmitData) {
-      saveMutation.mutate({ data: pendingSubmitData, force: true, editingId: editingLeave?.id });
-    }
   };
 
   const handleConfirmDelete = () => {
@@ -320,12 +174,13 @@ export default function LeavesPage() {
               <div className="flex items-center gap-2">
                 <CalendarOff className="h-6 w-6 text-primary" />
                 <h1 className="text-xl font-bold">請假管理</h1>
+                <span className="text-sm text-muted-foreground hidden sm:inline">休假／出差／上課</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Button onClick={handleAdd} data-testid="button-add-leave">
                 <Plus className="h-4 w-4 mr-2" />
-                登記請假
+                登記
               </Button>
               <ThemeToggle />
             </div>
@@ -339,7 +194,7 @@ export default function LeavesPage() {
             <CardHeader>
               <CardTitle>請假紀錄</CardTitle>
               <CardDescription>
-                管理測量員的請假時段，可精確到小時。請假期間系統將自動排除該測量員。
+                管理測量員的休假、出差、上課時段，可精確到小時。這段期間系統將自動排除該測量員。
                 若請假期間已有排定案件，系統會提示確認。
               </CardDescription>
             </CardHeader>
@@ -417,6 +272,9 @@ export default function LeavesPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <span className="font-medium">{leave.surveyorName}</span>
+                          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${leaveStyle(leave.leaveType).chip}`}>
+                            {leave.leaveType || "休假"}
+                          </Badge>
                           <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${status.className}`}>
                             {status.label}
                           </Badge>
@@ -462,123 +320,22 @@ export default function LeavesPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{editingLeave ? "編輯請假" : "登記請假"}</DialogTitle>
+            <DialogTitle>{editingLeave ? "編輯休假／出差／上課" : "登記休假／出差／上課"}</DialogTitle>
             <DialogDescription>
-              {editingLeave ? "修改請假測量員、時間段或原因" : "填寫請假測量員與時間段（可精確到小時）"}
+              {editingLeave ? "修改類型、測量員、時間段或說明" : "填寫測量員與時間段（可精確到小時）；也可以在「新增案件」視窗直接登記"}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>測量員 *</Label>
-              <Select value={formData.surveyorId} onValueChange={handleSurveyorChange}>
-                <SelectTrigger data-testid="select-leave-surveyor">
-                  <SelectValue placeholder="選擇測量員" />
-                </SelectTrigger>
-                <SelectContent>
-                  {surveyorsList.map(s => (
-                    <SelectItem key={s.id} value={s.id}>{s.name}（{s.businessAttribute}）</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>請假開始 *</Label>
-              <div className="flex gap-2">
-                <Input
-                  type="date"
-                  value={formData.startDate}
-                  onChange={e => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
-                  className="flex-1"
-                  data-testid="input-leave-start-date"
-                />
-                <Input
-                  type="time"
-                  value={formData.startTime}
-                  onChange={e => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
-                  className="w-28"
-                  data-testid="input-leave-start-time"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>請假結束 *</Label>
-              <div className="flex gap-2">
-                <Input
-                  type="date"
-                  value={formData.endDate}
-                  onChange={e => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
-                  className="flex-1"
-                  data-testid="input-leave-end-date"
-                />
-                <Input
-                  type="time"
-                  value={formData.endTime}
-                  onChange={e => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
-                  className="w-28"
-                  data-testid="input-leave-end-time"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                例：2026/3/7 08:00 ~ 2026/3/8 17:00 表示休假兩天
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>原因（選填）</Label>
-              <Input
-                value={formData.reason}
-                onChange={e => setFormData(prev => ({ ...prev, reason: e.target.value }))}
-                placeholder="例：年假、病假、外出訓練"
-                data-testid="input-leave-reason"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>取消</Button>
-            <Button onClick={handleSubmit} disabled={saveMutation.isPending} data-testid="button-submit-leave">
-              {saveMutation.isPending ? "處理中..." : "確定"}
-            </Button>
-          </DialogFooter>
+          <LeaveForm
+            open={dialogOpen}
+            editingLeave={editingLeave}
+            onDone={() => {
+              setDialogOpen(false);
+              setEditingLeave(null);
+            }}
+            onCancel={() => setDialogOpen(false)}
+          />
         </DialogContent>
       </Dialog>
-
-      {/* 衝突確認 Dialog */}
-      <AlertDialog open={conflictDialogOpen} onOpenChange={setConflictDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              請假期間已有排定案件
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2">
-                <p>以下 {pendingConflicts.length} 筆案件在請假時段內，確定仍要{editingLeave ? "儲存修改" : "登記請假"}嗎？</p>
-                <div className="max-h-40 overflow-y-auto space-y-1 mt-2">
-                  {pendingConflicts.map(c => (
-                    <div key={c.id} className="text-xs p-2 bg-muted rounded border">
-                      <span className="font-medium">{caseLabel(c)}</span>
-                      {" · "}{c.surveyDate} {c.scheduledTime}
-                      {" · "}{c.landParcel}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDialogOpen(true)}>返回修改</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleForceSubmit}
-              className="bg-amber-600 hover:bg-amber-700 text-white"
-              data-testid="button-confirm-force-leave"
-            >
-              {saveMutation.isPending ? "處理中..." : editingLeave ? "仍要儲存修改" : "仍要登記請假"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* 刪除確認 Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -586,7 +343,7 @@ export default function LeavesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>確定要取消請假嗎？</AlertDialogTitle>
             <AlertDialogDescription>
-              確定要取消「{deletingLeave?.surveyorName}」的請假紀錄嗎？
+              確定要取消「{deletingLeave?.surveyorName}」的{deletingLeave?.leaveType || "請假"}紀錄嗎？
               {deletingLeave && (
                 <span className="block mt-1 text-xs">
                   {formatDateRange(deletingLeave.startDatetime, deletingLeave.endDatetime)}

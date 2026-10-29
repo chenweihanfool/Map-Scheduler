@@ -19,10 +19,20 @@ import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.11.0";
-const RELEASE_DATE = "2026-10-28";
+const APP_VERSION = "v2.12.0";
+const RELEASE_DATE = "2026-10-29";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.12.0",
+    date: "2026-10-29",
+    items: [
+      "「新增案件」視窗上方可切換「測量案件」或「休假／出差／上課」，直接登記請假（比照測量案件排程）",
+      "請假新增類型：休假、出差、上課，月曆以橘、紫、藍區分，並顯示類型與時段",
+      "請假可快選當天的全天、上午、下午；從月曆某天新增時自動帶入該日期",
+      "請假管理頁顯示類型，可依類型搜尋；舊資料依原因自動判斷類型",
+    ],
+  },
   {
     version: "v2.11.0",
     date: "2026-10-28",

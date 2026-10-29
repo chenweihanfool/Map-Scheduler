@@ -4,7 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2, MapPin, Sparkles, Trash2 } from "lucide-react";
+import { CalendarIcon, CalendarOff, Loader2, MapPin, Sparkles, Trash2 } from "lucide-react";
+import { LeaveForm } from "@/components/leave-form";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -136,6 +137,12 @@ interface SurveyorRecommendation {
 export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: CaseFormDialogProps) {
   const { toast } = useToast();
   const isEditing = !!editCase;
+  // 新增時可切換「測量案件」或「休假／出差／上課」（比照測量案件排程）；編輯案件時固定為測量案件
+  const [kind, setKind] = useState<"case" | "leave">("case");
+  useEffect(() => {
+    if (open) setKind("case");
+  }, [open]);
+  const isLeave = !isEditing && kind === "leave";
   const [suggestedSurveyor, setSuggestedSurveyor] = useState<Surveyor | null>(null);
   const [assignmentMode, setAssignmentMode] = useState<string>("sequential");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -479,17 +486,48 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-primary" />
-            {isEditing ? "編輯測量案件" : "新增測量案件"}
+            {isLeave ? <CalendarOff className="h-5 w-5 text-primary" /> : <MapPin className="h-5 w-5 text-primary" />}
+            {isEditing ? "編輯測量案件" : isLeave ? "登記休假／出差／上課" : "新增測量案件"}
           </DialogTitle>
           <DialogDescription>
             {isEditing 
               ? "修改測量案件資料，系統會自動重新查詢座標位置" 
-              : "填寫測量案件資料，系統會自動從地政資料服務查詢座標位置"
+              : isLeave
+                ? "這段期間系統會自動排除該測量員，不會排入案件"
+                : "填寫測量案件資料，系統會自動從地政資料服務查詢座標位置"
             }
           </DialogDescription>
         </DialogHeader>
 
+        {!isEditing && (
+          <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-muted" role="tablist" data-testid="seg-form-kind">
+            {([["case", "測量案件"], ["leave", "休假／出差／上課"]] as const).map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={kind === k}
+                onClick={() => setKind(k)}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  kind === k ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                )}
+                data-testid={`button-kind-${k}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {isLeave ? (
+          <LeaveForm
+            open={open && isLeave}
+            defaultDate={defaultDate ? format(defaultDate, "yyyy-MM-dd") : undefined}
+            onDone={() => onOpenChange(false)}
+            onCancel={() => onOpenChange(false)}
+          />
+        ) : (
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -919,6 +957,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
             </DialogFooter>
           </form>
         </Form>
+        )}
       </DialogContent>
 
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>

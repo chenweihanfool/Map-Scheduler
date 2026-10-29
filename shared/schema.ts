@@ -169,6 +169,7 @@ export const surveyorLeaves = pgTable("surveyor_leaves", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   surveyorId: varchar("surveyor_id").notNull().references(() => surveyors.id, { onDelete: "cascade" }),
   surveyorName: text("surveyor_name").notNull(), // 備份名稱方便查詢
+  leaveType: text("leave_type").notNull().default("休假"), // 休假／出差／上課
   startDatetime: text("start_datetime").notNull(), // 請假開始時間 (YYYY-MM-DD HH:MM format)
   endDatetime: text("end_datetime").notNull(),     // 請假結束時間 (YYYY-MM-DD HH:MM format)
   reason: text("reason"), // 請假原因
@@ -181,6 +182,10 @@ export const insertSurveyorLeaveSchema = createInsertSchema(surveyorLeaves).omit
 });
 
 export type InsertSurveyorLeave = z.infer<typeof insertSurveyorLeaveSchema>;
+
+// 請假類型（比照「測量案件排程」）：休假、出差、上課，月曆以不同顏色標示
+export const LEAVE_TYPES = ["休假", "出差", "上課"] as const;
+export type LeaveType = (typeof LEAVE_TYPES)[number];
 export type SurveyorLeave = typeof surveyorLeaves.$inferSelect;
 
 // Custom case types table (自訂案件類型)

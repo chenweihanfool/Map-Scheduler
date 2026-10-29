@@ -21,6 +21,14 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SurveyorLeave } from "@shared/schema";
+import { leaveStyle } from "@/components/leave-form";
+
+// 請假時段：同一天只顯示時間，跨天加上月/日
+const leavePeriod = (l: SurveyorLeave) => {
+  const [sd, st] = l.startDatetime.split(" "), [ed, et] = l.endDatetime.split(" ");
+  const md = (d: string) => d.slice(5).replace("-", "/");
+  return sd === ed ? `${st}~${et}` : `${md(sd)} ${st}~${md(ed)} ${et}`;
+};
 
 interface CalendarViewProps {
   cases: SurveyCase[];
@@ -284,9 +292,17 @@ export function CalendarView({
 
               {/* Leave indicators */}
               {dayLeaves.length > 0 && (
-                <div className="mb-1 flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400" data-testid={`leaves-${dateKey}`}>
-                  <UserX className="h-3 w-3 flex-shrink-0" />
-                  <span className="truncate">{dayLeaves.map(l => l.surveyorName).join(", ")}</span>
+                <div className="mb-1 space-y-0.5" data-testid={`leaves-${dateKey}`}>
+                  {dayLeaves.map(l => (
+                    <div
+                      key={l.id}
+                      className={cn("flex items-center gap-1 text-xs", leaveStyle(l.leaveType).text)}
+                      title={`${l.leaveType || "休假"}：${l.surveyorName} ${l.startDatetime} ~ ${l.endDatetime}${l.reason ? `（${l.reason}）` : ""}`}
+                    >
+                      <UserX className="h-3 w-3 flex-shrink-0" />
+                      <span className="truncate">{l.leaveType || "休假"} {l.surveyorName}</span>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -362,11 +378,16 @@ export function CalendarView({
 
           <div className="flex-1 overflow-y-auto space-y-3 py-2 min-h-0">
             {detailLeaves.length > 0 && (
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800">
-                <UserX className="h-4 w-4 text-orange-500 shrink-0" />
-                <div className="text-sm text-orange-700 dark:text-orange-300">
-                  <span className="font-medium">請假：</span>
-                  {detailLeaves.map(l => l.surveyorName).join("、")}
+              <div className="flex items-start gap-2 p-2 rounded-lg bg-muted/50 border">
+                <UserX className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                <div className="text-sm space-y-0.5">
+                  {detailLeaves.map(l => (
+                    <div key={l.id} className={leaveStyle(l.leaveType).text}>
+                      <span className="font-medium">{l.leaveType || "休假"}：</span>
+                      {l.surveyorName}
+                      <span className="text-xs text-muted-foreground"> {leavePeriod(l)}{l.reason ? `（${l.reason}）` : ""}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
