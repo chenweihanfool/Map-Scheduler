@@ -51,7 +51,8 @@ export async function upgradeAgents(): Promise<void> {
       )`);
     const { rows } = await pool.query("SELECT count(*)::int AS n FROM mapscheduler.agents");
     if (rows[0].n > 0) return;
-    for (const [i, a] of AGENT_SEED.entries()) {
+    for (let i = 0; i < AGENT_SEED.length; i++) {
+      const a = AGENT_SEED[i];
       await pool.query(
         "INSERT INTO mapscheduler.agents (name, tel, fax, mobile, sort_order) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (name) DO NOTHING",
         [a.name, a.tel || null, a.fax || null, a.mobile || null, i],

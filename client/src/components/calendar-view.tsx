@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SurveyorLeave } from "@shared/schema";
-import { leaveStyle } from "@/components/leave-form";
+import { LeaveForm, leaveStyle, leaveBarClass } from "@/components/leave-form";
 
 // 請假時段：同一天只顯示時間，跨天加上月/日
 const leavePeriod = (l: SurveyorLeave) => {
@@ -29,6 +29,19 @@ const leavePeriod = (l: SurveyorLeave) => {
   const md = (d: string) => d.slice(5).replace("-", "/");
   return sd === ed ? `${st}~${et}` : `${md(sd)} ${st}~${md(ed)} ${et}`;
 };
+
+// 一筆請假在某一週的橫條：從第 start 欄到第 end 欄（含），lane 為第幾條
+interface LeaveSegment {
+  leave: SurveyorLeave;
+  start: number;
+  end: number;
+  lane: number;
+  isStart: boolean; // 這一段是請假的第一天
+  isEnd: boolean;   // 這一段是請假的最後一天
+}
+
+const BAR_H = 20;  // 橫條高度（px）
+const BAR_GAP = 2; // 橫條間距（px）
 
 interface CalendarViewProps {
   cases: SurveyCase[];
@@ -74,6 +87,12 @@ export function CalendarView({
   const today = startOfDay(new Date());
   const [detailDay, setDetailDay] = useState<{ date: Date; dateKey: string } | null>(null);
   const [hideWeekends, setHideWeekends] = useState(true);
+  const [openLeave, setOpenLeave] = useState<SurveyorLeave | null>(null);
+  const [editingLeave, setEditingLeave] = useState(false);
+  const showLeave = (l: SurveyorLeave) => {
+    setEditingLeave(false);
+    setOpenLeave(l);
+  };
 
   const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
     queryKey: ["/api/surveyors"],
@@ -125,9 +144,15 @@ export function CalendarView({
     return map;
   }, [filteredCases]);
 
+  // 篩選測量員時，請假也只顯示該測量員的
+  const filteredLeaves = useMemo(
+    () => leavesList.filter((l) => !surveyorFilter || surveyorFilter === "all" || l.surveyorName === surveyorFilter),
+    [leavesList, surveyorFilter],
+  );
+
   const leavesByDate = useMemo(() => {
     const map = new Map<string, SurveyorLeave[]>();
-    leavesList.forEach((leave) => {
+    filteredLeaves.forEach((leave) => {
       if (!leave.startDatetime || !leave.endDatetime) return;
       const startDate = leave.startDatetime.substring(0, 10);
       const endDate = leave.endDatetime.substring(0, 10);
@@ -142,7 +167,35 @@ export function CalendarView({
       }
     });
     return map;
-  }, [leavesList]);
+  }, [filteredLeaves]);
+
+  // 依週切開：每週一列，請假跨天時在該週畫成一條橫條，跨週就在下一週接著畫
+  const cols = hideWeekends ? 5 : 7;
+  const weeks = useMemo(() => {
+    const out: { days: Date[]; segments: LeaveSegment[]; lanes: number }[] = [];
+    for (let i = 0; i < days.length; i += cols) {
+      const weekDays = days.slice(i, i + cols);
+      const keys = weekDays.map((d) => format(d, "yyyy-MM-dd"));
+      const raw = filteredLeaves
+        .map((leave) => {
+          const sd = leave.startDatetime.slice(0, 10), ed = leave.endDatetime.slice(0, 10);
+          const idx = keys.map((k, j) => (k >= sd && k <= ed ? j : -1)).filter((j) => j >= 0);
+          if (!idx.length) return null;
+          return { leave, start: idx[0], end: idx[idx.length - 1], isStart: keys[idx[0]] === sd, isEnd: keys[idx[idx.length - 1]] === ed };
+        })
+        .filter((x): x is Omit<LeaveSegment, "lane"> => !!x)
+        .sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+      const laneEnds: number[] = [];
+      const segments = raw.map((seg) => {
+        let lane = laneEnds.findIndex((e) => e < seg.start);
+        if (lane < 0) lane = laneEnds.length;
+        laneEnds[lane] = seg.end;
+        return { ...seg, lane };
+      });
+      out.push({ days: weekDays, segments, lanes: laneEnds.length });
+    }
+    return out;
+  }, [days, cols, filteredLeaves]);
 
   const handlePrevMonth = () => onMonthChange(subMonths(currentMonth, 1));
   const handleNextMonth = () => onMonthChange(addMonths(currentMonth, 1));
@@ -206,26 +259,25 @@ export function CalendarView({
         </div>
       </div>
 
-      {/* Calendar Grid */}
-      <div className={cn(
-        "grid gap-px bg-border rounded-lg overflow-hidden",
-        hideWeekends ? "grid-cols-5" : "grid-cols-7"
-      )}>
-        {/* Weekday headers */}
-        {weekdayLabels.map((day) => (
-          <div
-            key={day}
-            className="bg-muted py-2 text-center text-sm font-medium"
-          >
-            {day}
-          </div>
-        ))}
+      {/* Calendar Grid：每週一列，請假橫條疊在該週上層 */}
+      <div className="flex flex-col gap-px bg-border rounded-lg overflow-hidden">
+        <div className={cn("grid gap-px", hideWeekends ? "grid-cols-5" : "grid-cols-7")}>
+          {weekdayLabels.map((day) => (
+            <div
+              key={day}
+              className="bg-muted py-2 text-center text-sm font-medium"
+            >
+              {day}
+            </div>
+          ))}
+        </div>
 
-        {/* Day cells */}
-        {days.map((day) => {
+        {weeks.map(({ days: weekDays, segments, lanes }) => (
+          <div key={format(weekDays[0], "yyyy-MM-dd")} className="relative">
+            <div className={cn("grid gap-px", hideWeekends ? "grid-cols-5" : "grid-cols-7")}>
+              {weekDays.map((day) => {
           const dateKey = format(day, "yyyy-MM-dd");
           const dayCases = casesByDate.get(dateKey) || [];
-          const dayLeaves = leavesByDate.get(dateKey) || [];
           const isCurrentMonth = isSameMonth(day, currentMonth);
           const isTodayDate = isToday(day);
           const dayOfWeek = day.getDay();
@@ -243,6 +295,7 @@ export function CalendarView({
                 <span className="text-sm text-muted-foreground/50 w-7 h-7 flex items-center justify-center">
                   {format(day, "d")}
                 </span>
+                {lanes > 0 && <div style={{ height: lanes * (BAR_H + BAR_GAP) }} />}
               </div>
             );
           }
@@ -290,21 +343,8 @@ export function CalendarView({
                 </Button>
               </div>
 
-              {/* Leave indicators */}
-              {dayLeaves.length > 0 && (
-                <div className="mb-1 space-y-0.5" data-testid={`leaves-${dateKey}`}>
-                  {dayLeaves.map(l => (
-                    <div
-                      key={l.id}
-                      className={cn("flex items-center gap-1 text-xs", leaveStyle(l.leaveType).text)}
-                      title={`${l.leaveType || "休假"}：${l.surveyorName} ${l.startDatetime} ~ ${l.endDatetime}${l.reason ? `（${l.reason}）` : ""}`}
-                    >
-                      <UserX className="h-3 w-3 flex-shrink-0" />
-                      <span className="truncate">{l.leaveType || "休假"} {l.surveyorName}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {/* 預留請假橫條的位置（橫條畫在整週的上層） */}
+              {lanes > 0 && <div style={{ height: lanes * (BAR_H + BAR_GAP) }} />}
 
               {/* Cases grouped by surveyor */}
               <div className="space-y-1 overflow-hidden max-h-[90px] xl:max-h-[140px] 2xl:max-h-[200px]">
@@ -348,7 +388,48 @@ export function CalendarView({
               )}
             </div>
           );
-        })}
+              })}
+            </div>
+
+            {lanes > 0 && (
+              <div
+                className={cn("absolute inset-x-0 top-[34px] grid gap-x-px pointer-events-none", hideWeekends ? "grid-cols-5" : "grid-cols-7")}
+                style={{ gridAutoRows: `${BAR_H}px`, rowGap: `${BAR_GAP}px` }}
+              >
+                {segments.map((seg) => {
+                  const l = seg.leave;
+                  const type = l.leaveType || "休假";
+                  const sameDay = l.startDatetime.slice(0, 10) === l.endDatetime.slice(0, 10);
+                  return (
+                    <button
+                      key={l.id}
+                      type="button"
+                      onClick={() => showLeave(l)}
+                      className={cn(
+                        "pointer-events-auto text-xs px-1.5 flex items-center gap-1 overflow-hidden whitespace-nowrap text-left",
+                        leaveBarClass(type),
+                        seg.isStart ? "ml-1 rounded-l" : "border-l-0",
+                        seg.isEnd ? "mr-1 rounded-r" : "border-r-0",
+                      )}
+                      style={{ gridColumn: `${seg.start + 1} / ${seg.end + 2}`, gridRow: seg.lane + 1 }}
+                      title={`${type}：${l.surveyorName} ${leavePeriod(l)}${l.reason ? `（${l.reason}）` : ""}`}
+                      data-testid={`leave-bar-${l.id}`}
+                    >
+                      {!seg.isStart && <span aria-hidden>‹</span>}
+                      <span className="font-semibold">{type}</span>
+                      <span className="truncate">
+                        {l.surveyorName}
+                        {sameDay && (l.startDatetime.slice(11) !== "08:00" || l.endDatetime.slice(11) !== "17:00") ? ` ${leavePeriod(l)}` : ""}
+                        {l.reason ? `・${l.reason}` : ""}
+                      </span>
+                      {!seg.isEnd && <span aria-hidden className="ml-auto">›</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
 
       {/* Surveyor legend */}
@@ -360,7 +441,57 @@ export function CalendarView({
             <span className="text-xs">{surveyor.name}</span>
           </div>
         ))}
+        <span className="text-sm text-muted-foreground ml-2">請假：</span>
+        {(["休假", "出差", "上課"] as const).map((t) => (
+          <div key={t} className="flex items-center gap-1">
+            <div className={cn("w-5 h-3 rounded-sm", leaveBarClass(t))} />
+            <span className="text-xs">{t}</span>
+          </div>
+        ))}
       </div>
+
+      {/* 請假詳細（點月曆上的橫條） */}
+      <Dialog open={!!openLeave} onOpenChange={(o) => !o && setOpenLeave(null)}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto" data-testid="dialog-leave-detail">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserX className="h-5 w-5" />
+              {editingLeave ? `編輯${openLeave?.leaveType || "休假"}` : `${openLeave?.leaveType || "休假"}：${openLeave?.surveyorName ?? ""}`}
+            </DialogTitle>
+          </DialogHeader>
+          {openLeave && (editingLeave ? (
+            <LeaveForm
+              open={editingLeave}
+              editingLeave={openLeave}
+              onDone={() => setOpenLeave(null)}
+              onCancel={() => setEditingLeave(false)}
+            />
+          ) : (
+            <div className="space-y-3">
+              <div className={cn("h-3 rounded", leaveBarClass(openLeave.leaveType))} />
+              <dl className="grid grid-cols-[4rem_1fr] gap-y-2 text-sm">
+                <dt className="text-muted-foreground">類型</dt>
+                <dd className={cn("font-medium", leaveStyle(openLeave.leaveType).text)}>{openLeave.leaveType || "休假"}</dd>
+                <dt className="text-muted-foreground">測量員</dt>
+                <dd>{openLeave.surveyorName}</dd>
+                <dt className="text-muted-foreground">開始</dt>
+                <dd className="tabular-nums">{openLeave.startDatetime.replace(/-/g, "/")}</dd>
+                <dt className="text-muted-foreground">結束</dt>
+                <dd className="tabular-nums">{openLeave.endDatetime.replace(/-/g, "/")}</dd>
+                <dt className="text-muted-foreground">說明</dt>
+                <dd>{openLeave.reason || "—"}</dd>
+              </dl>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setOpenLeave(null)}>關閉</Button>
+                <Button onClick={() => setEditingLeave(true)} data-testid="button-edit-leave-detail">
+                  <Pencil className="h-4 w-4 mr-1" />
+                  編輯
+                </Button>
+              </div>
+            </div>
+          ))}
+        </DialogContent>
+      </Dialog>
 
       {/* Day Detail Dialog */}
       <Dialog open={!!detailDay} onOpenChange={(open) => !open && setDetailDay(null)}>
@@ -382,11 +513,16 @@ export function CalendarView({
                 <UserX className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
                 <div className="text-sm space-y-0.5">
                   {detailLeaves.map(l => (
-                    <div key={l.id} className={leaveStyle(l.leaveType).text}>
+                    <button
+                      key={l.id}
+                      type="button"
+                      onClick={() => { setDetailDay(null); showLeave(l); }}
+                      className={cn("block text-left hover:underline", leaveStyle(l.leaveType).text)}
+                    >
                       <span className="font-medium">{l.leaveType || "休假"}：</span>
                       {l.surveyorName}
                       <span className="text-xs text-muted-foreground"> {leavePeriod(l)}{l.reason ? `（${l.reason}）` : ""}</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
