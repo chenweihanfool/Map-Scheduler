@@ -19,10 +19,17 @@ import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.13.0";
+const APP_VERSION = "v2.13.1";
 const RELEASE_DATE = "2026-10-29";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.13.1",
+    date: "2026-10-29",
+    items: [
+      "開放「測量案件排程」讀取請假資料（只能讀取），案件同步時可一併同步休假、出差、上課",
+    ],
+  },
   {
     version: "v2.13.0",
     date: "2026-10-29",
