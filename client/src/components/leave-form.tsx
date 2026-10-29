@@ -46,6 +46,10 @@ export const LEAVE_STYLES: Record<LeaveType, { text: string; chip: string; activ
   },
 };
 
+// 月曆橫條的材質類別（見 index.css 的 .leave-bar）
+export const LEAVE_BAR_CLASS: Record<LeaveType, string> = { "休假": "lv-vacation", "出差": "lv-trip", "上課": "lv-class" };
+export const leaveBarClass = (type?: string | null) => `leave-bar ${LEAVE_BAR_CLASS[(type as LeaveType) in LEAVE_BAR_CLASS ? (type as LeaveType) : "休假"]}`;
+
 export const leaveStyle = (type?: string | null) => LEAVE_STYLES[(type as LeaveType) in LEAVE_STYLES ? (type as LeaveType) : "休假"];
 
 // 時段快選：同一天的上午、下午、全天

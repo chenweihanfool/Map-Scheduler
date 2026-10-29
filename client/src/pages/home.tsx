@@ -19,10 +19,20 @@ import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.12.0";
+const APP_VERSION = "v2.13.0";
 const RELEASE_DATE = "2026-10-29";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.13.0",
+    date: "2026-10-29",
+    items: [
+      "月曆上的休假、出差、上課改成和案件類似的橫條，用斜線底紋顯示，休假橘、出差紫、上課藍",
+      "請假超過一天時橫條會橫跨顯示，跨週會接到下一週",
+      "點橫條可直接查看詳細內容並編輯；當日詳細視窗的請假也可點開",
+      "篩選測量員時，請假也只顯示該測量員的；月曆下方加上請假類型圖例",
+    ],
+  },
   {
     version: "v2.12.0",
     date: "2026-10-29",

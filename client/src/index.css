@@ -340,3 +340,18 @@
     break-after: avoid;
   }
 }
+
+/* 休假／出差／上課：月曆上的橫條，同一種斜線材質、不同底色（比照測量案件排程：休假橘、出差紫、上課藍） */
+.leave-bar {
+  background-color: var(--lv-bg);
+  background-image: repeating-linear-gradient(135deg, var(--lv-stripe) 0 4px, transparent 4px 9px);
+  border: 1px solid var(--lv-border);
+  color: var(--lv-text);
+}
+.leave-bar:hover { filter: brightness(0.97); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+.lv-vacation { --lv-bg: #fff7ed; --lv-stripe: rgb(249 115 22 / 0.22); --lv-border: #fdba74; --lv-text: #9a3412; }
+.lv-trip     { --lv-bg: #faf5ff; --lv-stripe: rgb(168 85 247 / 0.22); --lv-border: #d8b4fe; --lv-text: #6b21a8; }
+.lv-class    { --lv-bg: #f0f9ff; --lv-stripe: rgb(14 165 233 / 0.22); --lv-border: #7dd3fc; --lv-text: #075985; }
+.dark .lv-vacation { --lv-bg: #2a1708; --lv-stripe: rgb(249 115 22 / 0.28); --lv-border: #9a3412; --lv-text: #fdba74; }
+.dark .lv-trip     { --lv-bg: #1f1030; --lv-stripe: rgb(168 85 247 / 0.28); --lv-border: #6b21a8; --lv-text: #d8b4fe; }
+.dark .lv-class    { --lv-bg: #071d2b; --lv-stripe: rgb(14 165 233 / 0.28); --lv-border: #075985; --lv-text: #7dd3fc; }
