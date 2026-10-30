@@ -1,5 +1,6 @@
 import { pool } from "./db";
 import { AGENT_SEED } from "./agent-seed";
+import { CASE_TYPE_ALIASES } from "@shared/schema";
 
 // 啟動時自動補上新增的欄位（v2.9.0 收件日期、收件字；v2.10.0 代理人）與資料表（v2.11.0 代理人資訊；v2.12.0 請假類型；v2.15.0 法院股別、發文字號），並把舊格式案號拆回原位。
 //
@@ -103,5 +104,26 @@ export async function upgradeCourtFields(): Promise<void> {
     console.log(`[schema] 法院欄位已新增：拆開股別與發文字號 ${split.rowCount ?? 0} 筆、補上法院名稱 ${blank.rowCount ?? 0} 筆`);
   } catch (error) {
     console.error("法院欄位升級失敗：", error);
+  }
+}
+
+// v2.15.1 種類名稱統一：建物、新建 → 建物保存。案件、案件類型清單、類型權重都一起改；重複執行沒有影響
+export async function upgradeCaseTypeAliases(): Promise<void> {
+  try {
+    for (const [from, to] of Object.entries(CASE_TYPE_ALIASES)) {
+      const moved = await pool.query("UPDATE mapscheduler.survey_cases SET case_type = $2 WHERE case_type = $1", [from, to]);
+      const { rows } = await pool.query("SELECT 1 FROM mapscheduler.case_types WHERE name = $1", [to]);
+      if (rows.length) await pool.query("DELETE FROM mapscheduler.case_types WHERE name = $1", [from]);
+      else await pool.query("UPDATE mapscheduler.case_types SET name = $2 WHERE name = $1", [from, to]);
+      await pool.query(
+        `UPDATE mapscheduler.system_settings
+           SET case_type_weights = (case_type_weights - $1::text) || jsonb_build_object($2::text, coalesce(case_type_weights -> $2::text, case_type_weights -> $1::text))
+         WHERE case_type_weights ? $1::text`,
+        [from, to],
+      );
+      if (moved.rowCount) console.log(`[schema] 案件類型「${from}」改為「${to}」：${moved.rowCount} 件`);
+    }
+  } catch (error) {
+    console.error("案件類型名稱統一失敗：", error);
   }
 }

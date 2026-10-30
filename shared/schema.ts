@@ -42,7 +42,7 @@ export const DEFAULT_CASE_TYPES = [
   "鑑界",
   "再鑑界", 
   "法院",
-  "建物",
+  "建物保存",
   "分割",
   "合併",
   "新登錄",
@@ -51,6 +51,9 @@ export const DEFAULT_CASE_TYPES = [
 ] as const;
 
 export const CASE_TYPES = DEFAULT_CASE_TYPES;
+
+// 舊的種類名稱統一：建物、新建 → 建物保存（啟動時轉換，見 server/schema-upgrade.ts）
+export const CASE_TYPE_ALIASES: Record<string, string> = { "建物": "建物保存", "新建": "建物保存" };
 
 // Receive word options (收件字)：輸入前兩碼（例 81）即可帶出完整字號
 export const RECEIVE_WORDS = [
