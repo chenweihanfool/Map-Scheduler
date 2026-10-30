@@ -19,10 +19,20 @@ import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.14.0";
+const APP_VERSION = "v2.15.0";
 const RELEASE_DATE = "2026-10-30";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.15.0",
+    date: "2026-10-30",
+    items: [
+      "案件類型為「法院」「法院指界」時，申請人欄位改為「法院」（可選苗栗地方法院、臺灣高等法院臺中分院，也可自行輸入），並多「股別」「發文字號」",
+      "舊的法院案件自動拆開，例「民信674」→ 股別 民信、發文字號 674，法院名稱填苗栗地方法院",
+      "「所有權人」「地主」統一改稱「申請人」；法院案件在申請人欄位顯示「法院名稱/股別/發文字號」",
+      "月曆的案件多顯示代理人（案件標籤、滑鼠提示、當日詳細）",
+    ],
+  },
   {
     version: "v2.14.0",
     date: "2026-10-30",
@@ -73,7 +83,7 @@ const CHANGELOG: ChangelogRelease[] = [
     version: "v2.10.0",
     date: "2026-10-28",
     items: [
-      "新增、編輯案件時，所有權人旁新增「代理人」欄位（選填）",
+      "新增、編輯案件時，申請人旁新增「代理人」欄位（選填）",
       "案件詳細資料顯示代理人；搜尋也可找代理人",
     ],
   },

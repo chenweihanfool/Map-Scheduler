@@ -28,7 +28,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { UNKNOWN_TOWNSHIP, getTownship } from "@/lib/land-sections";
 import { TOWNSHIPS as LAND_TOWNSHIPS } from "@shared/land-sections";
 import type { CaseTypeRecord, SurveyCase, Surveyor } from "@shared/schema";
-import { caseLabel } from "@/lib/receive";
+import { caseLabel, applicantText } from "@/lib/receive";
 
 const UNASSIGNED = "（未指派）";
 const TOWNSHIPS = [...LAND_TOWNSHIPS, UNKNOWN_TOWNSHIP];
@@ -417,7 +417,7 @@ export default function ReportsPage() {
                           <th>地段地號</th>
                           <th>地區</th>
                           <th>測量員</th>
-                          <th>所有權人</th>
+                          <th>申請人</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -431,7 +431,7 @@ export default function ReportsPage() {
                             <td>{c.landParcel}</td>
                             <td className="whitespace-nowrap">{getTownship(c.landParcel)}</td>
                             <td className="whitespace-nowrap">{surveyorOf(c)}</td>
-                            <td>{c.owner || ""}</td>
+                            <td>{applicantText(c)}</td>
                           </tr>
                         ))}
                       </tbody>
