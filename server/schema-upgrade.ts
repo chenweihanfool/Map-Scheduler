@@ -154,3 +154,13 @@ export async function upgradeSurveyorColor(): Promise<void> {
     console.error("測量員顏色欄位升級失敗：", error);
   }
 }
+
+// v2.20.0 工作日調整：資料表不存在才建立
+export async function upgradeWorkdayOverrides(): Promise<void> {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS mapscheduler.workday_overrides (
+      date text PRIMARY KEY, kind text NOT NULL, label text, created_at timestamp DEFAULT now())`);
+  } catch (error) {
+    console.error("工作日調整資料表建立失敗：", error);
+  }
+}

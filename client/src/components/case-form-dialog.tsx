@@ -6,6 +6,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { CalendarClock, CalendarIcon, CalendarOff, Loader2, MapPin, Plus, Scissors, Sparkles, Trash2, X } from "lucide-react";
 import { LeaveForm } from "@/components/leave-form";
+import { useWorkdays } from "@/hooks/use-workdays";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -102,7 +103,9 @@ const getPreferredSlotsForCaseType = (caseType: string): string[] => {
   return CASE_TYPE_PREFERRED_SLOTS[caseType] || TIME_SLOTS;
 };
 
-const isWeekend = (date: Date): boolean => {
+// 不排件的日子：週末、國定假日、手動調整的休假（補班日照常排）
+const isOffDay = (date: Date, isWorkday?: (d: string) => boolean): boolean => {
+  if (isWorkday) return !isWorkday(format(date, "yyyy-MM-dd"));
   const day = date.getDay();
   return day === 0 || day === 6;
 };
@@ -110,14 +113,15 @@ const isWeekend = (date: Date): boolean => {
 const findNextAvailableDate = (
   caseType: string,
   existingCases: SurveyCase[],
-  startDate: Date = new Date()
+  startDate: Date = new Date(),
+  isWorkday?: (d: string) => boolean,
 ): { date: string; timeSlot: string } => {
   const preferredSlots = getPreferredSlotsForCaseType(caseType);
   let checkDate = new Date(startDate);
   checkDate.setHours(0, 0, 0, 0);
   
   for (let i = 0; i < 365; i++) {
-    if (!isWeekend(checkDate)) {
+    if (!isOffDay(checkDate, isWorkday)) {
       const dateStr = format(checkDate, "yyyy-MM-dd");
       const casesOnDate = existingCases.filter(c => c.surveyDate === dateStr && !isPostponed(c));   // 延期的原案件不佔時段
       const bookedSlots = casesOnDate.map(c => c.scheduledTime);
@@ -153,6 +157,7 @@ interface SurveyorRecommendation {
 export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPostpone, onOpenCase, onChangePostponeDate, onCancelPostpone }: CaseFormDialogProps) {
   const { toast } = useToast();
   const isEditing = !!editCase;
+  const { info: dayInfo } = useWorkdays();
   // 新增時可切換「測量案件」或「休假／出差／上課」（比照測量案件排程）；編輯案件時固定為測量案件
   const [kind, setKind] = useState<"case" | "leave">("case");
   useEffect(() => {
@@ -371,7 +376,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
       
       // Only use suggested date/time if NOT editing AND no defaultDate is provided
       if (!isEditing && !defaultDate && allCases.length >= 0) {
-        const suggested = findNextAvailableDate(defaultCaseType, allCases);
+        const suggested = findNextAvailableDate(defaultCaseType, allCases, new Date(), (d) => dayInfo(d).workday);
         surveyDate = suggested.date;
         scheduledTime = suggested.timeSlot;
       } else if (!isEditing && defaultDate && !scheduledTime) {

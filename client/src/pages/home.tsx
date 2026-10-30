@@ -22,10 +22,19 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.19.0";
+const APP_VERSION = "v2.20.0";
 const RELEASE_DATE = "2026-10-30";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.20.0",
+    date: "2026-10-30",
+    items: [
+      "月曆標示台灣國定假日（含補假），休假日以淡紅斜紋底色區分，補班日標「補班」",
+      "新增「調整工作日」：點日期切換上班／休假，可填說明（例 颱風假）；假日改上班即補班，再點一次恢復預設",
+      "「僅顯示平日」改名「不顯示六日」；只顯示空檔與新增案件建議日期都會跳過假日、照排補班日",
+    ],
+  },
   {
     version: "v2.19.0",
     date: "2026-10-31",

@@ -278,3 +278,16 @@ export const updateAgentSchema = insertAgentSchema.partial();
 
 export type InsertAgent = z.infer<typeof insertAgentSchema>;
 export type Agent = typeof agents.$inferSelect;
+
+// 工作日調整（月曆「調整工作日」）：kind = off（平日改休假）或 work（假日改上班／補班）
+export const workdayOverrides = pgTable("workday_overrides", {
+  date: text("date").primaryKey(), // YYYY-MM-DD
+  kind: text("kind").notNull(), // off | work
+  label: text("label"), // 說明，例 颱風假、補班
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const workdayOverrideSchema = z.object({
+  kind: z.enum(["off", "work"]),
+  label: z.string().max(30).nullable().optional(),
+});
+export type WorkdayOverride = typeof workdayOverrides.$inferSelect;
