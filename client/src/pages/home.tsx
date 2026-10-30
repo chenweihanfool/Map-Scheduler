@@ -19,10 +19,17 @@ import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.15.0";
+const APP_VERSION = "v2.15.1";
 const RELEASE_DATE = "2026-10-30";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.15.1",
+    date: "2026-10-30",
+    items: [
+      "案件類型「建物」「新建」統一改為「建物保存」（既有案件、類型清單、類型權重一起改）",
+    ],
+  },
   {
     version: "v2.15.0",
     date: "2026-10-30",
