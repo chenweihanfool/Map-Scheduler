@@ -96,6 +96,15 @@ export const surveyCases = pgTable("survey_cases", {
   owner: text("owner"), // 申請人；法院案件存法院名稱
   courtDivision: text("court_division"), // 法院案件：股別，例 民信
   courtDocNo: text("court_doc_no"), // 法院案件：發文字號，例 674
+  // 延期（比照測量案件排程）：原案件 status=延期 留在原日期作紀錄；有延期日期時另建一筆新案件，兩筆互相連結
+  status: text("status"), // 目前只有「延期」；空白為一般案件
+  postponeReason: text("postpone_reason"), // 延期理由
+  postponedToId: text("postponed_to_id"), // 延期後的新案件
+  postponedToDate: text("postponed_to_date"),
+  postponedToTime: text("postponed_to_time"),
+  postponedFromId: text("postponed_from_id"), // 由哪一件延期而來
+  postponedFromDate: text("postponed_from_date"),
+  postponedFromTime: text("postponed_from_time"),
   agent: text("agent"), // 代理人（選填）
   surveyor: text("surveyor").notNull(), // 測量員
   surveyDate: text("survey_date").notNull(), // 日期 (YYYY-MM-DD format)
@@ -116,6 +125,18 @@ export const insertSurveyCaseSchema = createInsertSchema(surveyCases).omit({
 });
 
 export const updateSurveyCaseSchema = insertSurveyCaseSchema.partial();
+
+export const POSTPONED = "延期";
+export const POSTPONE_REASONS = ["當日下雨", "案情複雜需擴大檢測", "現場會勘時間過長"] as const;
+// 延期的原案件只是紀錄，不佔時段、不算排件量
+export const isPostponed = (c: { status?: string | null }) => c.status === POSTPONED;
+// 延期了但還沒排新日期
+export const isPostponePending = (c: { status?: string | null; postponedToId?: string | null }) => c.status === POSTPONED && !c.postponedToId;
+export const postponeSchema = z.object({
+  reason: z.string().max(100).optional().default(""),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
+  time: z.string().optional().default(""),
+});
 
 export type InsertSurveyCase = z.infer<typeof insertSurveyCaseSchema>;
 export type UpdateSurveyCase = z.infer<typeof updateSurveyCaseSchema>;

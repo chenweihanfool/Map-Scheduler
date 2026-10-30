@@ -14,15 +14,27 @@ import { CalendarView } from "@/components/calendar-view";
 import { CalendarFilters } from "@/components/calendar-filters";
 import { CaseSearch } from "@/components/case-search";
 import { CaseDetailDialog } from "@/components/case-detail-dialog";
+import { PostponeDialog } from "@/components/postpone-dialog";
 import { CaseMap } from "@/components/case-map";
 import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog-timeline";
 import { cn } from "@/lib/utils";
-import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
+import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
 
-const APP_VERSION = "v2.15.2";
+const APP_VERSION = "v2.16.0";
 const RELEASE_DATE = "2026-10-30";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.16.0",
+    date: "2026-10-30",
+    items: [
+      "新增「延期」：案件詳細按「延期」，選延期理由（當日下雨、案情複雜需擴大檢測、現場會勘時間過長，或自行輸入）",
+      "有選延期日期：原案件標為延期留在原日期作紀錄，並複製一筆到新日期，兩筆互相連結；可先不選日期，畫面上方會提醒尚未排定延期日期",
+      "延期的原案件在月曆以刪除線顯示，不佔時段、不算排件量，也不算請假衝突",
+      "測量案件排程同步時會一併讀取延期狀態、理由與新案件",
+    ],
+  },
   {
     version: "v2.15.2",
     date: "2026-10-30",
@@ -337,6 +349,15 @@ export default function Home() {
     setSelectedMapCaseId(surveyCase.id);
   };
 
+  const { toast } = useToast();
+  const [postponeCase, setPostponeCase] = useState<SurveyCase | null>(null);
+  const openCaseById = (id: string) => {
+    const c = cases.find((x) => x.id === id);
+    if (c) handleCaseDetail(c);
+    else toast({ title: "找不到這筆案件，可能已被刪除" });
+  };
+  const pendingPostpones = cases.filter((c) => isPostponePending(c) && c.surveyDate >= "2026-01-01");
+
   const handleEditFromDetail = (surveyCase: SurveyCase) => {
     setEditCase(surveyCase);
     setSelectedDate(undefined);
@@ -394,6 +415,16 @@ export default function Home() {
       </header>
 
       <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {pendingPostpones.length > 0 && (
+          <div className="mb-4 rounded-lg border border-amber-400 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 px-4 py-2.5 text-sm flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="banner-postpone-pending">
+            <span className="font-medium text-amber-800 dark:text-amber-300">⚠ 有 {pendingPostpones.length} 件延期案件尚未排定延期日期：</span>
+            {pendingPostpones.map((c) => (
+              <button key={c.id} type="button" className="text-amber-700 dark:text-amber-400 underline-offset-2 hover:underline" onClick={() => handleCaseDetail(c)}>
+                {c.surveyDate.slice(5).replace("-", "/")} {c.landParcel}（{c.surveyor}）
+              </button>
+            ))}
+          </div>
+        )}
         {/* 寬螢幕（xl 以上）：左側排程、右側測量員側欄；較窄時測量員卡片排在下方 */}
         <div className="xl:flex xl:items-start xl:gap-6">
         <Card className="mb-6 xl:mb-0 xl:flex-1 xl:min-w-0">
@@ -542,6 +573,8 @@ export default function Home() {
         onOpenChange={handleCloseForm}
         editCase={editCase}
         defaultDate={selectedDate}
+        onPostpone={(c) => setPostponeCase(c)}
+        onOpenCase={openCaseById}
       />
 
       <CaseDetailDialog
@@ -549,6 +582,15 @@ export default function Home() {
         onOpenChange={setIsDetailOpen}
         caseData={detailCase}
         onEdit={handleEditFromDetail}
+        onPostpone={(c) => setPostponeCase(c)}
+        onOpenCase={openCaseById}
+      />
+
+      <PostponeDialog
+        open={!!postponeCase}
+        onOpenChange={(o) => !o && setPostponeCase(null)}
+        caseData={postponeCase}
+        onDone={(r) => r.copy && handleCaseDetail(r.copy)}
       />
 
       <Dialog open={isChangelogOpen} onOpenChange={setIsChangelogOpen}>

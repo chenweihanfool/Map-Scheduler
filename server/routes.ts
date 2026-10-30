@@ -15,6 +15,8 @@ import {
   type SurveyCase,
   insertAgentSchema,
   updateAgentSchema,
+  postponeSchema,
+  isPostponed,
 } from "@shared/schema";
 import { processCoordinateLookup, lookupCoordinates } from "./coordinate-service";
 
@@ -172,6 +174,32 @@ export async function registerRoutes(
   });
 
   // Create new survey case
+  // 延期（body：reason、date 可留空、time）；沒給日期時只標延期，之後再呼叫一次即可排新日期
+  app.post("/api/cases/:id/postpone", async (req, res) => {
+    try {
+      const parsed = postponeSchema.safeParse(req.body ?? {});
+      if (!parsed.success) return res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() });
+      const { reason, date, time } = parsed.data;
+      res.json(await storage.postponeCase(req.params.id, reason, date || undefined, time || undefined));
+    } catch (error: any) {
+      if (error?.status) return res.status(error.status).json({ error: error.message });
+      console.error("Error postponing case:", error);
+      res.status(500).json({ error: "Failed to postpone case" });
+    }
+  });
+
+  app.post("/api/cases/:id/postpone/cancel", async (req, res) => {
+    try {
+      const c = await storage.cancelPostpone(req.params.id);
+      if (!c) return res.status(404).json({ error: "Case not found" });
+      res.json(c);
+    } catch (error: any) {
+      if (error?.status) return res.status(error.status).json({ error: error.message });
+      console.error("Error cancelling postpone:", error);
+      res.status(500).json({ error: "Failed to cancel postpone" });
+    }
+  });
+
   app.post("/api/cases", async (req, res) => {
     try {
       const validationResult = insertSurveyCaseSchema.safeParse(req.body);
@@ -486,7 +514,7 @@ export async function registerRoutes(
   const findLeaveConflicts = async (surveyorName: string, startDatetime: string, endDatetime: string) => {
     const allCases = await storage.getAllCases();
     return allCases.filter(c => {
-      if (c.surveyor !== surveyorName) return false;
+      if (c.surveyor !== surveyorName || isPostponed(c)) return false;   // 延期的原案件不算衝突
       const caseDateTime = `${c.surveyDate} ${c.scheduledTime}`;
       return caseDateTime >= startDatetime && caseDateTime <= endDatetime;
     });

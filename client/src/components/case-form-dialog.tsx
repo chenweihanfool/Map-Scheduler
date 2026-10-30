@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarIcon, CalendarOff, Loader2, MapPin, Sparkles, Trash2 } from "lucide-react";
+import { CalendarClock, CalendarIcon, CalendarOff, Loader2, MapPin, Sparkles, Trash2 } from "lucide-react";
 import { LeaveForm } from "@/components/leave-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,7 +43,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import { CASE_TYPES, type SurveyCase, type Surveyor, type SystemSettings, type SurveyorLeave, type CaseTypeRecord, type Agent, RECEIVE_WORDS, COURT_NAMES, isCourtCase } from "@shared/schema";
+import { CASE_TYPES, type SurveyCase, type Surveyor, type SystemSettings, type SurveyorLeave, type CaseTypeRecord, type Agent, RECEIVE_WORDS, COURT_NAMES, isCourtCase, isPostponed, isPostponePending } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Star, Info } from "lucide-react";
@@ -85,6 +85,8 @@ interface CaseFormDialogProps {
   onOpenChange: (open: boolean) => void;
   editCase?: SurveyCase | null;
   defaultDate?: Date;
+  onPostpone?: (c: SurveyCase) => void;
+  onOpenCase?: (id: string) => void;
 }
 
 const TIME_SLOTS = ["09:00", "14:00"];
@@ -115,7 +117,7 @@ const findNextAvailableDate = (
   for (let i = 0; i < 365; i++) {
     if (!isWeekend(checkDate)) {
       const dateStr = format(checkDate, "yyyy-MM-dd");
-      const casesOnDate = existingCases.filter(c => c.surveyDate === dateStr);
+      const casesOnDate = existingCases.filter(c => c.surveyDate === dateStr && !isPostponed(c));   // 延期的原案件不佔時段
       const bookedSlots = casesOnDate.map(c => c.scheduledTime);
       
       for (const slot of preferredSlots) {
@@ -146,7 +148,7 @@ interface SurveyorRecommendation {
   reasons: string[];
 }
 
-export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: CaseFormDialogProps) {
+export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPostpone, onOpenCase }: CaseFormDialogProps) {
   const { toast } = useToast();
   const isEditing = !!editCase;
   // 新增時可切換「測量案件」或「休假／出差／上課」（比照測量案件排程）；編輯案件時固定為測量案件
@@ -288,6 +290,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
       c.surveyDate === watchedSurveyDate && 
       c.scheduledTime === watchedScheduledTime &&
       c.surveyor === watchedSurveyor &&
+      !isPostponed(c) &&
       (!isEditing || c.id !== editCase?.id)
     ).length > 0);
 
@@ -541,6 +544,22 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                 {label}
               </button>
             ))}
+          </div>
+        )}
+
+        {isEditing && editCase && (isPostponed(editCase) || editCase.postponedFromId) && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2 text-sm flex flex-wrap gap-x-4 gap-y-1" data-testid="form-postpone-info">
+            {isPostponed(editCase) && <span><b>{isPostponePending(editCase) ? "延期・未排日期" : "延期"}</b>　理由：{editCase.postponeReason || "（未填）"}</span>}
+            {editCase.postponedToId && (
+              <button type="button" className="text-amber-700 dark:text-amber-400 hover:underline" onClick={() => { onOpenChange(false); onOpenCase?.(editCase.postponedToId!); }}>
+                已延期至 {editCase.postponedToDate} {editCase.postponedToTime} →
+              </button>
+            )}
+            {editCase.postponedFromId && (
+              <button type="button" className="text-amber-700 dark:text-amber-400 hover:underline" onClick={() => { onOpenChange(false); onOpenCase?.(editCase.postponedFromId!); }}>
+                ← 由 {editCase.postponedFromDate} {editCase.postponedFromTime} 延期而來
+              </button>
+            )}
           </div>
         )}
 
@@ -996,6 +1015,19 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   刪除案件
+                </Button>
+              )}
+              {isEditing && editCase && onPostpone && (!isPostponed(editCase) || isPostponePending(editCase)) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-amber-500 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
+                  onClick={() => { onOpenChange(false); onPostpone(editCase); }}
+                  disabled={isPending}
+                  data-testid="button-postpone-case"
+                >
+                  <CalendarClock className="mr-2 h-4 w-4" />
+                  {isPostponePending(editCase) ? "排定延期日期" : "延期"}
                 </Button>
               )}
               <Button 

@@ -8,7 +8,8 @@ import {
   type CoordinateStatus,
   type CaseTypeRecord, type InsertCaseType,
   type Agent, type InsertAgent, agents,
-  DEFAULT_CASE_TYPES
+  DEFAULT_CASE_TYPES,
+  POSTPONED,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, and, gte, lte, or, ilike } from "drizzle-orm";
@@ -24,6 +25,8 @@ export interface IStorage {
   createCase(data: InsertSurveyCase): Promise<SurveyCase>;
   updateCase(id: string, data: UpdateSurveyCase): Promise<SurveyCase | undefined>;
   deleteCase(id: string): Promise<boolean>;
+  postponeCase(id: string, reason: string, date?: string, time?: string): Promise<{ original: SurveyCase; copy?: SurveyCase }>;
+  cancelPostpone(id: string): Promise<SurveyCase | undefined>;
   updateCaseCoordinates(id: string, longitude: number | null, latitude: number | null, status: CoordinateStatus, source?: string): Promise<SurveyCase | undefined>;
 
   getAllSurveyors(): Promise<Surveyor[]>;
@@ -115,6 +118,51 @@ export class DatabaseStorage implements IStorage {
       .where(eq(surveyCases.id, id))
       .returning();
     return surveyCase || undefined;
+  }
+
+  // 延期：原案件標「延期」留在原日期；有延期日期時，複製一筆到新日期（座標一起複製），兩筆互相連結
+  async postponeCase(id: string, reason: string, date?: string, time?: string): Promise<{ original: SurveyCase; copy?: SurveyCase }> {
+    return db.transaction(async (tx) => {
+      const [orig] = await tx.select().from(surveyCases).where(eq(surveyCases.id, id));
+      if (!orig) throw Object.assign(new Error("Case not found"), { status: 404 });
+      if (orig.postponedToId) throw Object.assign(new Error("這件已經延期到其他日期"), { status: 409 });
+      const reasonValue = reason.trim() || orig.postponeReason || null;
+      if (!date) {
+        const [original] = await tx.update(surveyCases).set({ status: POSTPONED, postponeReason: reasonValue }).where(eq(surveyCases.id, id)).returning();
+        return { original };
+      }
+      const { id: _id, createdAt: _c, ...rest } = orig;
+      const [copy] = await tx.insert(surveyCases).values({
+        ...rest,
+        surveyDate: date,
+        scheduledTime: time || orig.scheduledTime,
+        status: null,
+        postponeReason: null,
+        postponedToId: null,
+        postponedToDate: null,
+        postponedToTime: null,
+        postponedFromId: orig.id,
+        postponedFromDate: orig.surveyDate,
+        postponedFromTime: orig.scheduledTime,
+      }).returning();
+      const [original] = await tx.update(surveyCases).set({
+        status: POSTPONED,
+        postponeReason: reasonValue,
+        postponedToId: copy.id,
+        postponedToDate: copy.surveyDate,
+        postponedToTime: copy.scheduledTime,
+      }).where(eq(surveyCases.id, id)).returning();
+      return { original, copy };
+    });
+  }
+
+  // 取消延期：只限還沒排新日期的
+  async cancelPostpone(id: string): Promise<SurveyCase | undefined> {
+    const [c] = await db.select().from(surveyCases).where(eq(surveyCases.id, id));
+    if (!c) return undefined;
+    if (c.postponedToId) throw Object.assign(new Error("已延期到其他日期的案件不能取消延期"), { status: 409 });
+    const [updated] = await db.update(surveyCases).set({ status: null, postponeReason: null }).where(eq(surveyCases.id, id)).returning();
+    return updated;
   }
 
   async deleteCase(id: string): Promise<boolean> {
