@@ -19,10 +19,20 @@ import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.13.1";
-const RELEASE_DATE = "2026-10-29";
+const APP_VERSION = "v2.14.0";
+const RELEASE_DATE = "2026-10-30";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.14.0",
+    date: "2026-10-30",
+    items: [
+      "測量員清單可按住左側把手拖動排序（滑鼠、手機觸控都可以），順序模式會依這個順序輪流排件",
+      "系統設定的案件類型也可拖動排序；正確標示預設類型",
+      "新增業務屬性「課長」：不參與自動排件，也不列入智慧推薦",
+      "修正：關閉月曆請假詳細視窗時，標題短暫變空白",
+    ],
+  },
   {
     version: "v2.13.1",
     date: "2026-10-29",

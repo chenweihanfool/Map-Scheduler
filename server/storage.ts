@@ -31,6 +31,7 @@ export interface IStorage {
   createSurveyor(data: InsertSurveyor): Promise<Surveyor>;
   updateSurveyor(id: string, data: UpdateSurveyor): Promise<Surveyor | undefined>;
   deleteSurveyor(id: string): Promise<boolean>;
+  reorderSurveyors(ids: string[]): Promise<void>;
   addPointsToSurveyor(id: string, points: number): Promise<Surveyor | undefined>;
 
   getSettings(): Promise<SystemSettings>;
@@ -48,6 +49,7 @@ export interface IStorage {
   createCaseType(data: InsertCaseType): Promise<CaseTypeRecord>;
   updateCaseType(id: string, data: Partial<InsertCaseType>): Promise<CaseTypeRecord | undefined>;
   deleteCaseType(id: string): Promise<boolean>;
+  reorderCaseTypes(ids: string[]): Promise<void>;
   initializeDefaultCaseTypes(): Promise<void>;
   getAllAgents(): Promise<Agent[]>;
   createAgent(data: InsertAgent): Promise<Agent>;
@@ -140,6 +142,14 @@ export class DatabaseStorage implements IStorage {
 
   async getAllSurveyors(): Promise<Surveyor[]> {
     return db.select().from(surveyors).orderBy(asc(surveyors.sortOrder));
+  }
+
+  async reorderSurveyors(ids: string[]): Promise<void> {
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < ids.length; i++) {
+        await tx.update(surveyors).set({ sortOrder: i }).where(eq(surveyors.id, ids[i]));
+      }
+    });
   }
 
   async getSurveyor(id: string): Promise<Surveyor | undefined> {
@@ -273,6 +283,14 @@ export class DatabaseStorage implements IStorage {
       sortOrder: data.sortOrder ?? maxSortOrder + 1,
     }).returning();
     return caseType;
+  }
+
+  async reorderCaseTypes(ids: string[]): Promise<void> {
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < ids.length; i++) {
+        await tx.update(caseTypes).set({ sortOrder: i }).where(eq(caseTypes.id, ids[i]));
+      }
+    });
   }
 
   async updateCaseType(id: string, data: Partial<InsertCaseType>): Promise<CaseTypeRecord | undefined> {

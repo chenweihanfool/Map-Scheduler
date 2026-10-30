@@ -18,6 +18,7 @@ export const BUSINESS_ATTRIBUTES = [
   "複丈組",
   "政策組", 
   "重測組",
+  "課長", // 不參與排件（自動排件、智慧推薦都不會選到）
   "其他",
 ] as const;
 
