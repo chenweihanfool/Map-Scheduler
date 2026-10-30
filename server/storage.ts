@@ -10,6 +10,8 @@ import {
   type Agent, type InsertAgent, agents,
   DEFAULT_CASE_TYPES,
   POSTPONED,
+  POSTPONE_SYNC_FIELDS,
+  isPostponed,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, and, gte, lte, or, ilike, sql } from "drizzle-orm";
@@ -27,6 +29,7 @@ export interface IStorage {
   deleteCase(id: string): Promise<boolean>;
   postponeCase(id: string, reason: string, date?: string, time?: string): Promise<{ original: SurveyCase; copy?: SurveyCase }>;
   cancelPostpone(id: string): Promise<SurveyCase | undefined>;
+  syncPostponeChain(id: string): Promise<SurveyCase[]>;
   updateCaseCoordinates(id: string, longitude: number | null, latitude: number | null, status: CoordinateStatus, source?: string): Promise<SurveyCase | undefined>;
 
   getAllSurveyors(): Promise<Surveyor[]>;
@@ -157,17 +160,64 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  // 取消延期：只限還沒排新日期的
+  // 取消延期：可對原案件或延期後的新案件操作。刪除新案件，原案件恢復成一般案件
   async cancelPostpone(id: string): Promise<SurveyCase | undefined> {
-    const [c] = await db.select().from(surveyCases).where(eq(surveyCases.id, id));
-    if (!c) return undefined;
-    if (c.postponedToId) throw Object.assign(new Error("已延期到其他日期的案件不能取消延期"), { status: 409 });
-    const [updated] = await db.update(surveyCases).set({ status: null, postponeReason: null }).where(eq(surveyCases.id, id)).returning();
-    return updated;
+    return db.transaction(async (tx) => {
+      const [c] = await tx.select().from(surveyCases).where(eq(surveyCases.id, id));
+      if (!c) return undefined;
+      const origId = c.postponedFromId && !isPostponed(c) ? c.postponedFromId : c.id;
+      const [orig] = await tx.select().from(surveyCases).where(eq(surveyCases.id, origId));
+      if (!orig) throw Object.assign(new Error("找不到原案件"), { status: 404 });
+      if (orig.postponedToId) {
+        const [copy] = await tx.select().from(surveyCases).where(eq(surveyCases.id, orig.postponedToId));
+        if (copy?.postponedToId) throw Object.assign(new Error("延期後的新案件又再延期了，請先取消後面的延期"), { status: 409 });
+        if (copy) await tx.delete(surveyCases).where(eq(surveyCases.id, copy.id));
+      }
+      const [updated] = await tx.update(surveyCases).set({
+        status: null, postponeReason: null, postponedToId: null, postponedToDate: null, postponedToTime: null,
+      }).where(eq(surveyCases.id, orig.id)).returning();
+      return updated;
+    });
+  }
+
+  // 延期前後的案件互相連動：把這件的共用欄位寫到整串延期鏈的其他案件，並更新彼此記錄的日期時間；回傳有變動的其他案件
+  async syncPostponeChain(id: string): Promise<SurveyCase[]> {
+    const all = await db.select().from(surveyCases);
+    const byId = new Map(all.map((c) => [c.id, c]));
+    const src = byId.get(id);
+    if (!src) return [];
+    const chain = new Set<string>([id]);
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const cid of Array.from(chain)) {
+        const c = byId.get(cid)!;
+        for (const nid of [c.postponedFromId, c.postponedToId]) if (nid && byId.has(nid) && !chain.has(nid)) { chain.add(nid); grew = true; }
+      }
+    }
+    const shared = Object.fromEntries(POSTPONE_SYNC_FIELDS.map((f) => [f, src[f] ?? null])) as Partial<SurveyCase>;
+    const changed: SurveyCase[] = [];
+    for (const cid of Array.from(chain)) {
+      const c = byId.get(cid)!;
+      const to = c.postponedToId ? byId.get(c.postponedToId) : undefined, from = c.postponedFromId ? byId.get(c.postponedFromId) : undefined;
+      const patch: Partial<SurveyCase> = cid === id ? {} : { ...shared };
+      if (to) Object.assign(patch, { postponedToDate: to.surveyDate, postponedToTime: to.scheduledTime });
+      if (from) Object.assign(patch, { postponedFromDate: from.surveyDate, postponedFromTime: from.scheduledTime });
+      const diff = Object.entries(patch).some(([k, v]) => JSON.stringify((c as any)[k] ?? null) !== JSON.stringify(v ?? null));
+      if (!diff) continue;
+      const [u] = await db.update(surveyCases).set(patch as any).where(eq(surveyCases.id, cid)).returning();
+      if (cid !== id) changed.push(u);
+    }
+    return changed;
   }
 
   async deleteCase(id: string): Promise<boolean> {
     const result = await db.delete(surveyCases).where(eq(surveyCases.id, id)).returning();
+    const gone = result[0];
+    if (gone) {
+      // 清掉延期連結：刪的是新案件 → 原案件變回「延期・未排日期」；刪的是原案件 → 新案件不再記錄來源
+      if (gone.postponedFromId) await db.update(surveyCases).set({ postponedToId: null, postponedToDate: null, postponedToTime: null }).where(eq(surveyCases.id, gone.postponedFromId));
+      if (gone.postponedToId) await db.update(surveyCases).set({ postponedFromId: null, postponedFromDate: null, postponedFromTime: null }).where(eq(surveyCases.id, gone.postponedToId));
+    }
     return result.length > 0;
   }
 

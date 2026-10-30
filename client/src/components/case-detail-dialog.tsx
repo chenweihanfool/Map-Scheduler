@@ -1,9 +1,6 @@
 import { format } from "date-fns";
 import { zhTW } from "date-fns/locale";
 import { MapPin, Calendar, Clock, User, FileText, CheckCircle, XCircle, Loader2, Edit, CalendarClock, ArrowRight, ArrowLeft } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -23,19 +20,12 @@ interface CaseDetailDialogProps {
   onEdit?: (caseData: SurveyCase) => void;
   onPostpone?: (caseData: SurveyCase) => void;
   onOpenCase?: (id: string) => void;
+  onChangePostponeDate?: (caseData: SurveyCase) => void;
+  onCancelPostpone?: (caseData: SurveyCase) => void;
 }
 
-export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit, onPostpone, onOpenCase }: CaseDetailDialogProps) {
-  const { toast } = useToast();
-  const cancelMutation = useMutation({
-    mutationFn: async (id: string) => apiRequest("POST", `/api/cases/${id}/postpone/cancel`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
-      toast({ title: "已取消延期" });
-      onOpenChange(false);
-    },
-    onError: (error: Error) => toast({ title: "取消失敗", description: error.message, variant: "destructive" }),
-  });
+export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit, onPostpone, onOpenCase, onChangePostponeDate, onCancelPostpone }: CaseDetailDialogProps) {
+  const cancelMutation = { isPending: false, mutate: (_id: string) => { if (caseData && confirm("取消延期？延期後的新案件會刪除，原案件恢復為一般案件。")) { onOpenChange(false); onCancelPostpone?.(caseData); } } };
   if (!caseData) return null;
   const postponed = isPostponed(caseData), pending = isPostponePending(caseData);
 
@@ -154,6 +144,14 @@ export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit, onPostp
                 <button type="button" className="flex items-center gap-1 text-amber-700 dark:text-amber-400 hover:underline" onClick={() => onOpenCase?.(caseData.postponedFromId!)}>
                   <ArrowLeft className="h-3.5 w-3.5" />由 {caseData.postponedFromDate} {caseData.postponedFromTime} 延期而來
                 </button>
+              )}
+              {(caseData.postponedToId || (caseData.postponedFromId && !postponed)) && (
+                <div className="flex gap-2 pt-1">
+                  {caseData.postponedFromId && !postponed && (
+                    <Button variant="outline" size="sm" className="h-7" onClick={() => { onOpenChange(false); onChangePostponeDate?.(caseData); }} data-testid="button-detail-change-pp-date">更改延期日期</Button>
+                  )}
+                  <Button variant="ghost" size="sm" className="h-7 text-destructive" onClick={() => cancelMutation.mutate(caseData.id)} data-testid="button-detail-cancel-pp">取消延期</Button>
+                </div>
               )}
             </div>
           )}
