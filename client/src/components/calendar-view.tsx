@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { isPostponed, isPostponePending, type SurveyCase, type Surveyor, type SurveyorLeave } from "@shared/schema";
+import { isPostponed, isPostponePending, subsOf, type SurveyCase, type Surveyor, type SurveyorLeave } from "@shared/schema";
 import { LeaveForm, leaveStyle, leaveBarClass } from "@/components/leave-form";
 import { applicantText } from "@/lib/receive";
 
@@ -567,7 +567,10 @@ export function CalendarView({
                                 <Badge className="text-xs px-1 py-0 h-4 bg-amber-500 hover:bg-amber-500 text-white">{isPostponePending(c) ? "延期・未排日期" : `延期至 ${c.postponedToDate?.slice(5).replace("-", "/")}`}</Badge>
                               )}
                             </div>
-                            <div className="text-sm font-medium mt-0.5 truncate">{c.landParcel}</div>
+                            <div className="text-sm font-medium mt-0.5 truncate">{c.landParcel}{subsOf(c).length > 0 && ` ＋${subsOf(c).length} 件連件`}</div>
+                            {subsOf(c).length > 0 && (
+                              <div className="text-xs opacity-70 truncate">{subsOf(c).map((x) => [x.caseNumber, x.landParcel].filter(Boolean).join(" ")).join("、")}</div>
+                            )}
                             {(applicantText(c) || c.agent) && (
                               <div className="text-xs opacity-60 mt-0.5">
                                 {applicantText(c)}
@@ -646,6 +649,7 @@ function CaseChip({
       >
         {isPostponed(c) && <span className="no-underline font-semibold text-amber-700 dark:text-amber-400 mr-1">{isPostponePending(c) ? "延期未排" : "延期"}</span>}
         {c.scheduledTime} {c.caseType} {c.landParcel}
+        {subsOf(c).length > 0 && <span className="font-semibold ml-0.5">＋{subsOf(c).length}</span>}
         {c.agent && <span className="opacity-70">・{c.agent}</span>}
       </button>
 
@@ -665,6 +669,12 @@ function CaseChip({
               <span className="shrink-0 w-12">類型</span>
               <span className="text-foreground">{c.caseType}</span>
             </div>
+            {subsOf(c).length > 0 && (
+              <div className="flex gap-3">
+                <span className="shrink-0 w-12">連件</span>
+                <span className="text-foreground">{subsOf(c).map((x) => [x.caseNumber, x.caseType, x.landParcel].filter(Boolean).join(" ")).join("、")}</span>
+              </div>
+            )}
             {applicantText(c) && (
               <div className="flex gap-3">
                 <span className="shrink-0 w-12">申請人</span>
