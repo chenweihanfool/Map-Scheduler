@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { CalendarClock, CalendarIcon, CalendarOff, Loader2, MapPin, Plus, Scissors, Sparkles, Trash2, X } from "lucide-react";
 import { LeaveForm } from "@/components/leave-form";
 import { useWorkdays } from "@/hooks/use-workdays";
+import { useNonWorkdayGuard } from "@/components/nonworkday-alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -158,6 +159,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
   const { toast } = useToast();
   const isEditing = !!editCase;
   const { info: dayInfo } = useWorkdays();
+  const { guard: guardWorkday, alert: workdayAlert } = useNonWorkdayGuard();
   // 新增時可切換「測量案件」或「休假／出差／上課」（比照測量案件排程）；編輯案件時固定為測量案件
   const [kind, setKind] = useState<"case" | "leave">("case");
   useEffect(() => {
@@ -561,11 +563,10 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
   });
 
   const onSubmit = (data: FormValues) => {
-    if (isEditing) {
-      updateMutation.mutate(data);
-    } else {
-      createMutation.mutate(data);
-    }
+    const save = () => (isEditing ? updateMutation.mutate(data) : createMutation.mutate(data));
+    // 修改時日期沒變就不再提醒（例 已排在假日的案件只改備註）
+    if (isEditing && editCase?.surveyDate === data.surveyDate) save();
+    else guardWorkday(data.surveyDate, save);
   };
 
   const isPending = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
@@ -1181,6 +1182,8 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
         </Form>
         )}
       </DialogContent>
+
+      {workdayAlert}
 
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <AlertDialogContent>

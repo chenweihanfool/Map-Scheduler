@@ -15,7 +15,7 @@ import {
   subMonths
 } from "date-fns";
 import { zhTW } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Plus, UserX, Maximize2, Pencil, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, UserX, Maximize2, Pencil, CalendarDays, Sparkles, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -25,6 +25,7 @@ import { LeaveForm, leaveStyle, leaveBarClass } from "@/components/leave-form";
 import { applicantText } from "@/lib/receive";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 import { useWorkdays } from "@/hooks/use-workdays";
+import type { WorkdayInfo } from "@shared/holidays";
 import { WorkdayEditor } from "@/components/workday-editor";
 
 // 請假時段：同一天只顯示時間，跨天加上月/日
@@ -319,6 +320,11 @@ export function CalendarView({
               )}
               data-testid={`calendar-day-${dateKey}`}
             >
+              {(wd.kind === "holiday" || wd.kind === "off") && isCurrentMonth && (
+                <span aria-hidden className="pointer-events-none select-none absolute right-1 bottom-0 font-serif font-black text-6xl leading-none text-red-500/10 dark:text-red-400/10">
+                  {wd.label.replace(/[（(].*$/, "").slice(0, 1)}
+                </span>
+              )}
               {/* Date number + Add button */}
               <div className="flex items-center justify-between mb-1">
                 <button
@@ -327,6 +333,10 @@ export function CalendarView({
                     isTodayDate && "bg-primary text-primary-foreground font-bold",
                     !isTodayDate && isCurrentMonth && "hover:bg-muted cursor-pointer",
                     !isCurrentMonth && "text-muted-foreground cursor-pointer hover:bg-muted",
+                    // 非工作日：日期紅色加大加粗；補班日藍色
+                    !isTodayDate && !wd.workday && "text-lg font-extrabold font-serif w-8 h-8",
+                    !isTodayDate && !wd.workday && (isCurrentMonth ? "text-red-600 dark:text-red-400" : "text-red-400/60"),
+                    !isTodayDate && wd.kind === "makeup" && "text-lg font-extrabold font-serif w-8 h-8 text-sky-600 dark:text-sky-400",
                   )}
                   onClick={() => handleDayNumberClick(day, dateKey)}
                   data-testid={`button-day-detail-${dateKey}`}
@@ -334,15 +344,7 @@ export function CalendarView({
                 >
                   {format(day, "d")}
                 </button>
-                {wd.label && (
-                  <span
-                    className={cn("text-[11px] font-medium truncate mx-1", wd.kind === "makeup" ? "text-sky-700 dark:text-sky-400" : "text-red-600 dark:text-red-400")}
-                    title={wd.label}
-                    data-testid={`holiday-${dateKey}`}
-                  >
-                    {wd.label}
-                  </span>
-                )}
+                <DayBadge info={wd} weekday={dayOfWeek} dim={!isCurrentMonth} testId={`holiday-${dateKey}`} />
                 <Button
                   variant="ghost"
                   size="icon"
@@ -706,5 +708,37 @@ function CaseChip({
         </div>
       )}
     </div>
+  );
+}
+
+// 日期旁的節日標籤：國定假日紅橘漸層、調整的休假琥珀漸層、補班藍色、週末「週六／週日」
+function DayBadge({ info, weekday, dim, testId }: { info: WorkdayInfo; weekday: number; dim: boolean; testId: string }) {
+  if (info.kind === "work") return null;
+  if (info.kind === "weekend") {
+    return (
+      <span className={cn("mx-1 font-serif font-bold text-sm tracking-[0.2em]", dim ? "text-red-400/50" : "text-red-500/80 dark:text-red-400/80")} data-testid={testId}>
+        {weekday === 6 ? "週六" : "週日"}
+      </span>
+    );
+  }
+  const tone = info.kind === "holiday"
+    ? "from-rose-600 via-red-500 to-orange-400 shadow-red-500/30"
+    : info.kind === "off"
+      ? "from-amber-500 to-orange-500 shadow-amber-500/30"
+      : "from-sky-500 to-cyan-400 shadow-sky-500/30";
+  return (
+    <span
+      className={cn(
+        "mx-1 inline-flex items-center gap-1 min-w-0 rounded-full bg-gradient-to-r px-2 py-0.5 text-white text-[13px] font-bold font-serif tracking-wide shadow-sm",
+        tone,
+        dim && "opacity-50",
+      )}
+      title={info.label}
+      data-testid={testId}
+    >
+      {info.kind === "makeup" ? <Briefcase className="h-3 w-3 shrink-0" /> : <Sparkles className="h-3 w-3 shrink-0" />}
+      <span className="truncate">{info.label.replace(/（.*）$/, "")}</span>
+      {/（補假）$/.test(info.label) && <span className="text-[10px] font-normal opacity-90 shrink-0" title="補假">補</span>}
+    </span>
   );
 }

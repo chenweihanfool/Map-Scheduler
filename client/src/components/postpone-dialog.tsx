@@ -15,6 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { caseLabel } from "@/lib/receive";
+import { useNonWorkdayGuard } from "@/components/nonworkday-alert";
 import { POSTPONE_REASONS, isPostponePending, type SurveyCase } from "@shared/schema";
 
 interface PostponeDialogProps {
@@ -36,6 +37,7 @@ export function PostponeDialog({ open, onOpenChange, caseData, onDone }: Postpon
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const pending = !!caseData && isPostponePending(caseData);
+  const { guard, alert } = useNonWorkdayGuard();
 
   useEffect(() => {
     if (!open || !caseData) return;
@@ -128,10 +130,11 @@ export function PostponeDialog({ open, onOpenChange, caseData, onDone }: Postpon
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="bg-amber-600 hover:bg-amber-700 text-white" data-testid="button-confirm-postpone">
+          <Button onClick={() => guard(date, () => mutation.mutate())} disabled={mutation.isPending} className="bg-amber-600 hover:bg-amber-700 text-white" data-testid="button-confirm-postpone">
             {mutation.isPending ? "處理中..." : date ? "確認延期" : pending ? "儲存" : "標為延期（日期之後再排）"}
           </Button>
         </DialogFooter>
+        {alert}
       </DialogContent>
     </Dialog>
   );
@@ -162,6 +165,7 @@ export function ChangePostponeDateDialog({ open, onOpenChange, caseData }: Chang
   const { toast } = useToast();
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
+  const { guard, alert } = useNonWorkdayGuard();
   useEffect(() => {
     if (!open || !caseData) return;
     setDate(caseData.surveyDate);
@@ -202,8 +206,9 @@ export function ChangePostponeDateDialog({ open, onOpenChange, caseData }: Chang
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={() => mutation.mutate()} disabled={!date || mutation.isPending} data-testid="button-confirm-change-pp-date">{mutation.isPending ? "處理中..." : "確認更改"}</Button>
+          <Button onClick={() => (date === caseData.surveyDate ? mutation.mutate() : guard(date, () => mutation.mutate()))} disabled={!date || mutation.isPending} data-testid="button-confirm-change-pp-date">{mutation.isPending ? "處理中..." : "確認更改"}</Button>
         </DialogFooter>
+        {alert}
       </DialogContent>
     </Dialog>
   );
