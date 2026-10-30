@@ -1,7 +1,7 @@
 import { pool } from "./db";
 import { AGENT_SEED } from "./agent-seed";
 
-// 啟動時自動補上新增的欄位（v2.9.0 收件日期、收件字；v2.10.0 代理人）與資料表（v2.11.0 代理人資訊；v2.12.0 請假類型），並把舊格式案號拆回原位。
+// 啟動時自動補上新增的欄位（v2.9.0 收件日期、收件字；v2.10.0 代理人）與資料表（v2.11.0 代理人資訊；v2.12.0 請假類型；v2.15.0 法院股別、發文字號），並把舊格式案號拆回原位。
 //
 // 不用 drizzle-kit push：資料表另有刻意不宣告的 geom 欄位（見 shared/schema.ts），
 // push 可能會把它刪掉。這裡只做「欄位不存在才新增」與「只改符合舊格式的列」，重複執行不會有影響。
@@ -77,5 +77,31 @@ export async function upgradeLeaveType(): Promise<void> {
     console.log(`[schema] 請假類型欄位已新增，依原因判斷：上課 ${r1.rowCount ?? 0} 筆、出差 ${r2.rowCount ?? 0} 筆`);
   } catch (error) {
     console.error("請假類型欄位升級失敗：", error);
+  }
+}
+
+// v2.15.0 法院案件：新增股別、發文字號欄位。只在第一次新增欄位時，把舊資料「民信674」這種格式拆開：
+// 股別 民信、發文字號 674，申請人（法院名稱）看不出來的一律填苗栗地方法院
+export async function upgradeCourtFields(): Promise<void> {
+  try {
+    const { rows } = await pool.query(
+      "SELECT 1 FROM information_schema.columns WHERE table_schema = 'mapscheduler' AND table_name = 'survey_cases' AND column_name = 'court_division'",
+    );
+    if (rows.length) return;
+    await pool.query("ALTER TABLE mapscheduler.survey_cases ADD COLUMN IF NOT EXISTS court_division text");
+    await pool.query("ALTER TABLE mapscheduler.survey_cases ADD COLUMN IF NOT EXISTS court_doc_no text");
+    const split = await pool.query(`
+      UPDATE mapscheduler.survey_cases SET
+        court_division = substring(trim(owner) from '^([^0-9]+)[0-9]+$'),
+        court_doc_no = substring(trim(owner) from '^[^0-9]+([0-9]+)$'),
+        owner = '苗栗地方法院'
+      WHERE case_type IN ('法院', '法院指界') AND trim(owner) ~ '^[^0-9]+[0-9]+$' AND trim(owner) !~ '法院'
+    `);
+    const blank = await pool.query(
+      "UPDATE mapscheduler.survey_cases SET owner = '苗栗地方法院' WHERE case_type IN ('法院', '法院指界') AND coalesce(trim(owner), '') = ''",
+    );
+    console.log(`[schema] 法院欄位已新增：拆開股別與發文字號 ${split.rowCount ?? 0} 筆、補上法院名稱 ${blank.rowCount ?? 0} 筆`);
+  } catch (error) {
+    console.error("法院欄位升級失敗：", error);
   }
 }

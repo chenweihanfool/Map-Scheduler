@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SurveyorLeave } from "@shared/schema";
 import { LeaveForm, leaveStyle, leaveBarClass } from "@/components/leave-form";
+import { applicantText } from "@/lib/receive";
 
 // 請假時段：同一天只顯示時間，跨天加上月/日
 const leavePeriod = (l: SurveyorLeave) => {
@@ -564,8 +565,11 @@ export function CalendarView({
                               <Badge variant="outline" className="text-xs px-1 py-0 h-4">{c.caseType}</Badge>
                             </div>
                             <div className="text-sm font-medium mt-0.5 truncate">{c.landParcel}</div>
-                            {c.owner && (
-                              <div className="text-xs opacity-60 mt-0.5">{c.owner}</div>
+                            {(applicantText(c) || c.agent) && (
+                              <div className="text-xs opacity-60 mt-0.5">
+                                {applicantText(c)}
+                                {c.agent && <span>{applicantText(c) ? "・" : ""}代理人 {c.agent}</span>}
+                              </div>
                             )}
                           </div>
                           <Pencil className="h-3.5 w-3.5 opacity-40 shrink-0 mt-0.5" />
@@ -636,6 +640,7 @@ function CaseChip({
         data-testid={`case-${c.id}`}
       >
         {c.scheduledTime} {c.caseType} {c.landParcel}
+        {c.agent && <span className="opacity-70">・{c.agent}</span>}
       </button>
 
       {/* Fixed-position tooltip — renders above all UI elements */}
@@ -647,22 +652,28 @@ function CaseChip({
           <div className="font-semibold text-base mb-2 leading-snug">{c.landParcel}</div>
           <div className="space-y-1 text-muted-foreground">
             <div className="flex gap-3">
-              <span className="shrink-0 w-8">時間</span>
+              <span className="shrink-0 w-12">時間</span>
               <span className="text-foreground font-medium">{c.scheduledTime}</span>
             </div>
             <div className="flex gap-3">
-              <span className="shrink-0 w-8">類型</span>
+              <span className="shrink-0 w-12">類型</span>
               <span className="text-foreground">{c.caseType}</span>
             </div>
-            {c.owner && (
+            {applicantText(c) && (
               <div className="flex gap-3">
-                <span className="shrink-0 w-8">地主</span>
-                <span className="text-foreground">{c.owner}</span>
+                <span className="shrink-0 w-12">申請人</span>
+                <span className="text-foreground">{applicantText(c)}</span>
+              </div>
+            )}
+            {c.agent && (
+              <div className="flex gap-3">
+                <span className="shrink-0 w-12">代理人</span>
+                <span className="text-foreground">{c.agent}</span>
               </div>
             )}
             {c.caseNumber && (
               <div className="flex gap-3 mt-2 pt-2 border-t border-border/50">
-                <span className="shrink-0 w-8 text-xs text-muted-foreground/60">字號</span>
+                <span className="shrink-0 w-12 text-xs text-muted-foreground/60">字號</span>
                 <span className="text-xs text-muted-foreground/80 break-all">{c.caseNumber}</span>
               </div>
             )}

@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import type { SurveyCase } from "@shared/schema";
-import { caseLabel } from "@/lib/receive";
+import { caseLabel, applicantText } from "@/lib/receive";
 
 interface CaseSearchProps {
   onCaseSelect: (caseItem: SurveyCase) => void;
@@ -52,7 +52,7 @@ export function CaseSearch({ onCaseSelect }: CaseSearchProps) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             ref={inputRef}
-            placeholder="搜尋案件（案號、地段、所有權人、測量員）"
+            placeholder="搜尋案件（案號、地段、申請人、測量員）"
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
@@ -139,7 +139,7 @@ export function CaseSearch({ onCaseSelect }: CaseSearchProps) {
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {caseItem.landParcel}
-                        {caseItem.owner && ` | ${caseItem.owner}`}
+                        {applicantText(caseItem) && ` | ${applicantText(caseItem)}`}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {caseItem.surveyor} | {caseItem.surveyDate} {caseItem.scheduledTime}

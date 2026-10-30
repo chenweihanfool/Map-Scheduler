@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import type { SurveyCase } from "@shared/schema";
-import { caseLabel, formatRocDate } from "@/lib/receive";
+import { caseLabel, formatRocDate, applicantText } from "@/lib/receive";
 
 interface CaseDetailDialogProps {
   open: boolean;
@@ -107,12 +107,12 @@ export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit }: CaseD
               </div>
             </div>
 
-            {caseData.owner && (
+            {applicantText(caseData) && (
               <div className="flex items-start gap-3">
                 <User className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium">所有權人</p>
-                  <p className="text-sm text-muted-foreground">{caseData.owner}</p>
+                  <p className="text-sm font-medium">申請人</p>
+                  <p className="text-sm text-muted-foreground" data-testid="text-applicant">{applicantText(caseData)}</p>
                 </div>
               </div>
             )}

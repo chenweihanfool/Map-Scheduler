@@ -1,4 +1,4 @@
-import { RECEIVE_WORDS } from "@shared/schema";
+import { RECEIVE_WORDS, isCourtCase } from "@shared/schema";
 
 // 收件日期以 YYYY-MM-DD 存放，畫面以民國年顯示
 export function formatRocDate(value?: string | null, style: "short" | "long" = "short"): string {
@@ -25,4 +25,10 @@ export function caseLabel(c: { caseNumber?: string | null }): string {
 // 「收件日期・收件字」的簡短說明，沒有資料時回傳空字串
 export function receiveSummary(c: { receiveDate?: string | null; receiveWord?: string | null }): string {
   return [formatRocDate(c.receiveDate), c.receiveWord ?? ""].filter(Boolean).join("・");
+}
+
+// 申請人欄位的顯示：法院案件為「法院名稱/股別/發文字號」，其他案件為申請人
+export function applicantText(c: { caseType?: string | null; owner?: string | null; courtDivision?: string | null; courtDocNo?: string | null }): string {
+  if (!isCourtCase(c.caseType)) return c.owner?.trim() ?? "";
+  return [c.owner, c.courtDivision, c.courtDocNo].map((x) => x?.trim()).filter(Boolean).join("/");
 }

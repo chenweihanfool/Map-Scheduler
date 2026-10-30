@@ -43,7 +43,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import { CASE_TYPES, type SurveyCase, type Surveyor, type SystemSettings, type SurveyorLeave, type CaseTypeRecord, type Agent, RECEIVE_WORDS } from "@shared/schema";
+import { CASE_TYPES, type SurveyCase, type Surveyor, type SystemSettings, type SurveyorLeave, type CaseTypeRecord, type Agent, RECEIVE_WORDS, COURT_NAMES, isCourtCase } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Star, Info } from "lucide-react";
@@ -66,7 +66,9 @@ const formSchema = z.object({
   caseType: z.string().min(1, "案件類型為必填"),
   section: z.string().min(1, "地段為必填"),
   lotNumber: z.string().min(1, "地號為必填"),
-  owner: z.string().optional(),
+  owner: z.string().optional(), // 申請人；法院案件為法院名稱
+  courtDivision: z.string().optional(), // 法院案件：股別
+  courtDocNo: z.string().optional(), // 法院案件：發文字號
   agent: z.string().optional(),
   surveyor: z.string().min(1, "測量員為必填"),
   surveyDate: z.string().min(1, "日期為必填"),
@@ -126,6 +128,16 @@ const findNextAvailableDate = (
   }
   
   return { date: format(new Date(), "yyyy-MM-dd"), timeSlot: preferredSlots[0] };
+};
+
+// 非法院案件不保留股別、發文字號
+const withCourtFields = (data: FormValues) => {
+  const court = isCourtCase(data.caseType);
+  return {
+    ...data,
+    courtDivision: court ? data.courtDivision?.trim() || null : null,
+    courtDocNo: court ? data.courtDocNo?.trim() || null : null,
+  };
 };
 
 interface SurveyorRecommendation {
@@ -345,6 +357,8 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
         section: parsed.section,
         lotNumber: parsed.lotNumber,
         owner: editCase?.owner ?? "",
+        courtDivision: editCase?.courtDivision ?? "",
+        courtDocNo: editCase?.courtDocNo ?? "",
         agent: editCase?.agent ?? "",
         surveyor: defaultSurveyor,
         surveyDate,
@@ -363,6 +377,16 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
   }, [open, editCase, defaultDate]);
 
   const watchedCaseType = form.watch("caseType");
+  const isCourt = isCourtCase(watchedCaseType);
+  // 切換成法院案件且申請人空白時，預設苗栗地方法院
+  useEffect(() => {
+    if (open && isCourt && !form.getValues("owner")) form.setValue("owner", COURT_NAMES[0]);
+  }, [open, isCourt]);
+  // 法院名稱選單：預設兩個法院，加上曾經填過的
+  const courtOptions = Array.from(new Set([
+    ...COURT_NAMES,
+    ...allCases.filter((c) => isCourtCase(c.caseType) && c.owner).map((c) => c.owner!.trim()),
+  ])).filter(Boolean);
 
   const { data: settings } = useQuery<SystemSettings>({
     queryKey: ["/api/settings"],
@@ -371,7 +395,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
 
   const createMutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      const { section, lotNumber, ...rest } = data;
+      const { section, lotNumber, ...rest } = withCourtFields(data);
       const landParcel = `${section}${lotNumber}`;
       const response = await apiRequest("POST", "/api/cases", { ...rest, landParcel });
       const result = await response.json();
@@ -425,7 +449,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
 
   const updateMutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      const { section, lotNumber, ...rest } = data;
+      const { section, lotNumber, ...rest } = withCourtFields(data);
       const landParcel = `${section}${lotNumber}`;
       const response = await apiRequest("PATCH", `/api/cases/${editCase?.id}`, { ...rest, landParcel });
       return response;
@@ -665,15 +689,22 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                 name="owner"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>所有權人</FormLabel>
+                    <FormLabel>{isCourt ? "法院" : "申請人"}</FormLabel>
                     <FormControl>
                       <Input 
-                        placeholder="例: 王大明" 
+                        placeholder={isCourt ? "選擇或輸入法院名稱" : "例: 王大明"}
+                        list={isCourt ? "court-options" : undefined}
+                        autoComplete="off"
                         {...field}
                         value={field.value || ""}
                         data-testid="input-owner"
                       />
                     </FormControl>
+                    {isCourt && (
+                      <datalist id="court-options">
+                        {courtOptions.map((n) => <option key={n} value={n} />)}
+                      </datalist>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -707,6 +738,35 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate }: Ca
                 )}
               />
             </div>
+
+            {isCourt && (
+              <div className="grid grid-cols-2 gap-4" data-testid="court-fields">
+                <FormField
+                  control={form.control}
+                  name="courtDivision"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>股別</FormLabel>
+                      <FormControl>
+                        <Input placeholder="例: 民信" {...field} value={field.value || ""} data-testid="input-court-division" />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="courtDocNo"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>發文字號</FormLabel>
+                      <FormControl>
+                        <Input placeholder="例: 674" {...field} value={field.value || ""} data-testid="input-court-doc-no" />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
 
             {recommendations.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-3 space-y-2" data-testid="recommendation-panel">

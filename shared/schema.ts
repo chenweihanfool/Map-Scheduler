@@ -13,6 +13,11 @@ import { z } from "zod";
 const mapschedulerSchema = pgSchema("mapscheduler");
 const pgTable = mapschedulerSchema.table;
 
+// 法院案件（法院、法院指界）：申請人欄位改填法院名稱，並多股別、發文字號
+export const COURT_CASE_TYPES = ["法院", "法院指界"] as const;
+export const COURT_NAMES = ["苗栗地方法院", "臺灣高等法院臺中分院"] as const;
+export const isCourtCase = (caseType?: string | null) => (COURT_CASE_TYPES as readonly string[]).includes(caseType ?? "");
+
 // Business attribute options (業務屬性)
 export const BUSINESS_ATTRIBUTES = [
   "複丈組",
@@ -85,7 +90,9 @@ export const surveyCases = pgTable("survey_cases", {
   caseNumber: text("case_number").notNull(), // 案號
   caseType: text("case_type").notNull().default("鑑界"), // 案件類型
   landParcel: text("land_parcel").notNull(), // 地段地號
-  owner: text("owner"), // 所有權人
+  owner: text("owner"), // 申請人；法院案件存法院名稱
+  courtDivision: text("court_division"), // 法院案件：股別，例 民信
+  courtDocNo: text("court_doc_no"), // 法院案件：發文字號，例 674
   agent: text("agent"), // 代理人（選填）
   surveyor: text("surveyor").notNull(), // 測量員
   surveyDate: text("survey_date").notNull(), // 日期 (YYYY-MM-DD format)
