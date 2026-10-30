@@ -317,7 +317,7 @@ export default function SettingsPage() {
                   ))
                 ) : (
                   <div className="text-sm text-muted-foreground p-3 text-center border rounded-lg">
-                    {caseTypesLoading ? "載入中..." : "尚未設定自訂類型，使用預設類型（鑑界、複丈、建物測量、法院囑託）"}
+                    {caseTypesLoading ? "載入中..." : `尚未設定自訂類型，使用預設類型（${DEFAULT_CASE_TYPES.join("、")}）`}
                   </div>
                 )}
               </div>
