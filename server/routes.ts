@@ -265,11 +265,16 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Case not found" });
       }
 
+      // 延期前後的案件互相連動（共用欄位、彼此記錄的日期時間）
+      const linked = await storage.syncPostponeChain(surveyCase.id);
+
       // If land parcel changed, re-trigger coordinate lookup
       if (validationResult.data.landParcel) {
-        processCoordinateLookup(surveyCase.id).catch(err => {
-          console.error("Background coordinate lookup failed:", err);
-        });
+        for (const id of [surveyCase.id, ...linked.map((c) => c.id)]) {
+          processCoordinateLookup(id).catch(err => {
+            console.error("Background coordinate lookup failed:", err);
+          });
+        }
       }
 
       res.json(surveyCase);

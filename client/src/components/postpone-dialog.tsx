@@ -136,3 +136,75 @@ export function PostponeDialog({ open, onOpenChange, caseData, onDone }: Postpon
     </Dialog>
   );
 }
+
+// 取消延期：原案件或延期後的新案件都可以；會刪除新案件，原案件恢復成一般案件
+export function useCancelPostpone(onDone?: () => void) {
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async (id: string) => apiRequest("POST", `/api/cases/${id}/postpone/cancel`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      toast({ title: "已取消延期", description: "延期後的新案件已刪除，原案件恢復為一般案件" });
+      onDone?.();
+    },
+    onError: (error: Error) => toast({ title: "取消延期失敗", description: error.message, variant: "destructive" }),
+  });
+}
+
+interface ChangeDateDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  caseData: SurveyCase | null; // 延期後的新案件
+}
+
+// 更改延期日期：改新案件的日期時間，原案件記錄的「延期至」會跟著更新
+export function ChangePostponeDateDialog({ open, onOpenChange, caseData }: ChangeDateDialogProps) {
+  const { toast } = useToast();
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  useEffect(() => {
+    if (!open || !caseData) return;
+    setDate(caseData.surveyDate);
+    const t = caseData.scheduledTime?.match(/(\d{1,2}):(\d{2})/);
+    setTime(t ? `${t[1].padStart(2, "0")}:${t[2]}` : "");
+  }, [open, caseData]);
+  const mutation = useMutation({
+    mutationFn: async () => apiRequest("PATCH", `/api/cases/${caseData!.id}`, { surveyDate: date, scheduledTime: time || caseData!.scheduledTime }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      toast({ title: `延期日期已改為 ${date} ${time}` });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => toast({ title: "更改失敗", description: error.message, variant: "destructive" }),
+  });
+  if (!caseData) return null;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><CalendarClock className="h-5 w-5 text-amber-500" />更改延期日期</DialogTitle>
+          <DialogDescription>{caseLabel(caseData)}・{caseData.landParcel}・由 {caseData.postponedFromDate} {caseData.postponedFromTime} 延期</DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor="pp-new-date">延期日期</Label>
+            <Input id="pp-new-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} data-testid="input-change-pp-date" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="pp-new-time">時間</Label>
+            <Input id="pp-new-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} data-testid="input-change-pp-time" />
+            <div className="flex gap-1.5">
+              {QUICK_TIMES.map((q) => (
+                <Button key={q.value} type="button" size="sm" variant={time === q.value ? "default" : "outline"} className="h-7 px-2 text-xs" onClick={() => setTime(q.value)}>{q.label}</Button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
+          <Button onClick={() => mutation.mutate()} disabled={!date || mutation.isPending} data-testid="button-confirm-change-pp-date">{mutation.isPending ? "處理中..." : "確認更改"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -139,6 +139,11 @@ export const insertSurveyCaseSchema = createInsertSchema(surveyCases).omit({
 export const updateSurveyCaseSchema = insertSurveyCaseSchema.partial();
 
 export const POSTPONED = "延期";
+// 延期前後的案件互相連動的欄位（日期、時間、延期狀態與理由各自獨立）
+export const POSTPONE_SYNC_FIELDS = [
+  "receiveDate", "receiveWord", "caseNumber", "caseType", "landParcel", "owner", "courtDivision", "courtDocNo",
+  "agent", "surveyor", "notes", "subs",
+] as const;
 export const POSTPONE_REASONS = ["當日下雨", "案情複雜需擴大檢測", "現場會勘時間過長"] as const;
 // 延期的原案件只是紀錄，不佔時段、不算排件量
 export const isPostponed = (c: { status?: string | null }) => c.status === POSTPONED;

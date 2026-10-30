@@ -14,17 +14,27 @@ import { CalendarView } from "@/components/calendar-view";
 import { CalendarFilters } from "@/components/calendar-filters";
 import { CaseSearch } from "@/components/case-search";
 import { CaseDetailDialog } from "@/components/case-detail-dialog";
-import { PostponeDialog } from "@/components/postpone-dialog";
+import { PostponeDialog, ChangePostponeDateDialog, useCancelPostpone } from "@/components/postpone-dialog";
 import { CaseMap } from "@/components/case-map";
 import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog-timeline";
 import { cn } from "@/lib/utils";
 import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 
-const APP_VERSION = "v2.17.0";
+const APP_VERSION = "v2.18.0";
 const RELEASE_DATE = "2026-10-30";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.18.0",
+    date: "2026-10-31",
+    items: [
+      "修正：按「刪除案件」後確認視窗被蓋住、畫面像當掉；日期選擇器與提示訊息被視窗蓋住的問題一併修正",
+      "延期後的新案件：「刪除」改為「取消延期」（刪除新案件、原案件恢復）與「更改延期日期」；原案件也可取消延期",
+      "延期前後的案件欄位互相連動：改其中一件的案號、類型、地段地號、申請人、代理人、測量員、備註、連件等，另一件跟著改；日期時間各自獨立",
+      "連件可填件數一次產生，類型與地段沿用主件，案號自動遞增（建物／收件字 82 每件 +10，其他每件 +100），產生後仍可修改",
+    ],
+  },
   {
     version: "v2.17.0",
     date: "2026-10-30",
@@ -361,6 +371,8 @@ export default function Home() {
 
   const { toast } = useToast();
   const [postponeCase, setPostponeCase] = useState<SurveyCase | null>(null);
+  const [changeDateCase, setChangeDateCase] = useState<SurveyCase | null>(null);
+  const cancelPostpone = useCancelPostpone();
   const openCaseById = (id: string) => {
     const c = cases.find((x) => x.id === id);
     if (c) handleCaseDetail(c);
@@ -585,6 +597,14 @@ export default function Home() {
         defaultDate={selectedDate}
         onPostpone={(c) => setPostponeCase(c)}
         onOpenCase={openCaseById}
+        onChangePostponeDate={(c) => setChangeDateCase(c)}
+        onCancelPostpone={(c) => cancelPostpone.mutate(c.id)}
+      />
+
+      <ChangePostponeDateDialog
+        open={!!changeDateCase}
+        onOpenChange={(o) => !o && setChangeDateCase(null)}
+        caseData={changeDateCase}
       />
 
       <CaseDetailDialog
@@ -594,6 +614,8 @@ export default function Home() {
         onEdit={handleEditFromDetail}
         onPostpone={(c) => setPostponeCase(c)}
         onOpenCase={openCaseById}
+        onChangePostponeDate={(c) => setChangeDateCase(c)}
+        onCancelPostpone={(c) => cancelPostpone.mutate(c.id)}
       />
 
       <PostponeDialog

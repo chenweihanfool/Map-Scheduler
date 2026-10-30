@@ -87,6 +87,8 @@ interface CaseFormDialogProps {
   defaultDate?: Date;
   onPostpone?: (c: SurveyCase) => void;
   onOpenCase?: (id: string) => void;
+  onChangePostponeDate?: (c: SurveyCase) => void;
+  onCancelPostpone?: (c: SurveyCase) => void;
 }
 
 const TIME_SLOTS = ["09:00", "14:00"];
@@ -148,7 +150,7 @@ interface SurveyorRecommendation {
   reasons: string[];
 }
 
-export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPostpone, onOpenCase }: CaseFormDialogProps) {
+export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPostpone, onOpenCase, onChangePostponeDate, onCancelPostpone }: CaseFormDialogProps) {
   const { toast } = useToast();
   const isEditing = !!editCase;
   // 新增時可切換「測量案件」或「休假／出差／上課」（比照測量案件排程）；編輯案件時固定為測量案件
@@ -161,6 +163,24 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
   type SubRow = { caseNumber: string; caseType: string; section: string; lotNumber: string };
   const [subRows, setSubRows] = useState<SubRow[]>([]);
   const setSub = (i: number, patch: Partial<SubRow>) => setSubRows((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  // 連件案號遞增：建物（收件字 82）每件 +10，其他（收件字 80、81）每件 +100；沒有收件字時看類型是否含「建物」
+  const [subCount, setSubCount] = useState(1);
+  const subStep = () => {
+    const word = (form.getValues("receiveWord") || "").trim();
+    if (/^82/.test(word)) return 10;
+    if (/^8[01]/.test(word)) return 100;
+    return /建物/.test(form.getValues("caseType") || "") ? 10 : 100;
+  };
+  const addSubs = (n: number) => {
+    const count = Math.max(1, Math.min(30, Math.floor(n) || 1));
+    const last = [form.getValues("caseNumber"), ...subRows.map((r) => r.caseNumber)].map((x) => (x || "").trim()).filter(Boolean).pop() || "";
+    const base = /^\d+$/.test(last) ? Number(last) : NaN, step = subStep();
+    const type = form.getValues("caseType") || "", section = form.getValues("section") || "";
+    setSubRows((rows) => [...rows, ...Array.from({ length: count }, (_, i) => ({
+      caseNumber: Number.isNaN(base) ? "" : String(base + step * (i + 1)),
+      caseType: type, section, lotNumber: "",
+    }))]);
+  };
   const subsPayload = () => subRows
     .map((r) => ({ caseNumber: r.caseNumber.trim(), caseType: r.caseType, landParcel: `${r.section.trim()}${r.lotNumber.trim()}` }))
     .filter((r) => r.caseNumber || r.landParcel);
@@ -772,10 +792,16 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
                   <p className="text-xs text-muted-foreground">第 1 件為上方的主件；連件算 1 件排件量，座標只查主件。</p>
                 </div>
               )}
-              <Button type="button" variant="outline" size="sm" onClick={() => setSubRows((rows) => [...rows, { caseNumber: "", caseType: form.getValues("caseType") || "", section: form.getValues("section") || "", lotNumber: "" }])} data-testid="button-add-sub">
-                <Plus className="h-4 w-4 mr-1" />
-                連件
-              </Button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm">{subRows.length ? "再加" : "連件"}</span>
+                <Input type="number" min={1} max={30} value={subCount} onChange={(e) => setSubCount(Number(e.target.value))} className="h-8 w-16" data-testid="input-sub-count" />
+                <span className="text-sm">件</span>
+                <Button type="button" variant="outline" size="sm" onClick={() => addSubs(subCount)} data-testid="button-add-sub">
+                  <Plus className="h-4 w-4 mr-1" />
+                  產生連件
+                </Button>
+                <span className="text-xs text-muted-foreground">案號自動遞增：建物（收件字 82）每件 +10，其他每件 +100，產生後仍可修改</span>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -1080,7 +1106,30 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
             )}
 
             <DialogFooter className="gap-2">
-              {isEditing && (
+              {/* 延期後的新案件：不提供刪除，改成取消延期、更改延期日期 */}
+              {isEditing && editCase?.postponedFromId && !isPostponed(editCase) && (
+                <div className="flex gap-2 sm:mr-auto">
+                  <Button type="button" variant="outline" className="border-destructive/60 text-destructive hover:bg-destructive/10" disabled={isPending}
+                    onClick={() => { if (confirm("取消延期？這件延期後的新案件會刪除，原案件恢復為一般案件。")) { onOpenChange(false); onCancelPostpone?.(editCase); } }}
+                    data-testid="button-cancel-postpone">
+                    取消延期
+                  </Button>
+                  <Button type="button" variant="outline" className="border-amber-500 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950" disabled={isPending}
+                    onClick={() => { onOpenChange(false); onChangePostponeDate?.(editCase); }}
+                    data-testid="button-change-postpone-date">
+                    <CalendarClock className="mr-2 h-4 w-4" />
+                    更改延期日期
+                  </Button>
+                </div>
+              )}
+              {isEditing && editCase && isPostponed(editCase) && (
+                <Button type="button" variant="outline" className="border-destructive/60 text-destructive hover:bg-destructive/10" disabled={isPending}
+                  onClick={() => { if (confirm(editCase.postponedToId ? "取消延期？延期後的新案件會刪除，這件恢復為一般案件。" : "取消延期？這件恢復為一般案件。")) { onOpenChange(false); onCancelPostpone?.(editCase); } }}
+                  data-testid="button-cancel-postpone-orig">
+                  取消延期
+                </Button>
+              )}
+              {isEditing && !(editCase?.postponedFromId && !isPostponed(editCase)) && (
                 <Button
                   type="button"
                   variant="destructive"
