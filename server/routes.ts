@@ -17,6 +17,7 @@ import {
   updateAgentSchema,
   postponeSchema,
   isPostponed,
+  workdayOverrideSchema,
 } from "@shared/schema";
 import { processCoordinateLookup, lookupCoordinates } from "./coordinate-service";
 
@@ -708,6 +709,38 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting case type:", error);
       res.status(500).json({ error: "Failed to delete case type" });
+    }
+  });
+
+  // ===== 工作日調整 API（月曆「調整工作日」）=====
+  app.get("/api/workdays", async (_req, res) => {
+    try {
+      res.json(await storage.getWorkdayOverrides());
+    } catch (error) {
+      console.error("Error fetching workday overrides:", error);
+      res.status(500).json({ error: "Failed to fetch workday overrides" });
+    }
+  });
+
+  app.put("/api/workdays/:date", async (req, res) => {
+    try {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(req.params.date)) return res.status(400).json({ error: "日期格式錯誤" });
+      const parsed = workdayOverrideSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Validation failed" });
+      res.json(await storage.setWorkdayOverride(req.params.date, parsed.data.kind, parsed.data.label?.trim() || null));
+    } catch (error) {
+      console.error("Error saving workday override:", error);
+      res.status(500).json({ error: "Failed to save workday override" });
+    }
+  });
+
+  app.delete("/api/workdays/:date", async (req, res) => {
+    try {
+      await storage.deleteWorkdayOverride(req.params.date);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting workday override:", error);
+      res.status(500).json({ error: "Failed to delete workday override" });
     }
   });
 

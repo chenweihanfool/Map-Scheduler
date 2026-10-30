@@ -12,6 +12,8 @@ import {
   POSTPONED,
   POSTPONE_SYNC_FIELDS,
   isPostponed,
+  workdayOverrides,
+  type WorkdayOverride,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, and, gte, lte, or, ilike, sql } from "drizzle-orm";
@@ -57,6 +59,9 @@ export interface IStorage {
   deleteCaseType(id: string): Promise<boolean>;
   reorderCaseTypes(ids: string[]): Promise<void>;
   initializeDefaultCaseTypes(): Promise<void>;
+  getWorkdayOverrides(): Promise<WorkdayOverride[]>;
+  setWorkdayOverride(date: string, kind: string, label: string | null): Promise<WorkdayOverride>;
+  deleteWorkdayOverride(date: string): Promise<boolean>;
   getAllAgents(): Promise<Agent[]>;
   createAgent(data: InsertAgent): Promise<Agent>;
   updateAgent(id: string, data: Partial<InsertAgent>): Promise<Agent | undefined>;
@@ -405,6 +410,21 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCaseType(id: string): Promise<boolean> {
     const result = await db.delete(caseTypes).where(eq(caseTypes.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getWorkdayOverrides(): Promise<WorkdayOverride[]> {
+    return db.select().from(workdayOverrides).orderBy(asc(workdayOverrides.date));
+  }
+
+  async setWorkdayOverride(date: string, kind: string, label: string | null): Promise<WorkdayOverride> {
+    const [row] = await db.insert(workdayOverrides).values({ date, kind, label })
+      .onConflictDoUpdate({ target: workdayOverrides.date, set: { kind, label } }).returning();
+    return row;
+  }
+
+  async deleteWorkdayOverride(date: string): Promise<boolean> {
+    const result = await db.delete(workdayOverrides).where(eq(workdayOverrides.date, date)).returning();
     return result.length > 0;
   }
 

@@ -24,6 +24,8 @@ import { isPostponed, isPostponePending, subsOf, type SurveyCase, type Surveyor,
 import { LeaveForm, leaveStyle, leaveBarClass } from "@/components/leave-form";
 import { applicantText } from "@/lib/receive";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
+import { useWorkdays } from "@/hooks/use-workdays";
+import { WorkdayEditor } from "@/components/workday-editor";
 
 // 請假時段：同一天只顯示時間，跨天加上月/日
 const leavePeriod = (l: SurveyorLeave) => {
@@ -77,6 +79,8 @@ export function CalendarView({
   const today = startOfDay(new Date());
   const [detailDay, setDetailDay] = useState<{ date: Date; dateKey: string } | null>(null);
   const [hideWeekends, setHideWeekends] = useState(true);
+  const [editWorkdays, setEditWorkdays] = useState(false);
+  const { info: dayInfo } = useWorkdays();
   // 開關與內容分開：關閉時保留內容，淡出動畫期間標題不會變空白
   const [openLeave, setOpenLeave] = useState<SurveyorLeave | null>(null);
   const [leaveOpen, setLeaveOpen] = useState(false);
@@ -245,7 +249,10 @@ export function CalendarView({
             className="gap-1.5"
           >
             <CalendarDays className="h-4 w-4" />
-            {hideWeekends ? "僅顯示平日" : "顯示全週"}
+            {hideWeekends ? "不顯示六日" : "顯示全週"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setEditWorkdays(true)} data-testid="button-edit-workdays">
+            調整工作日
           </Button>
           <Button variant="outline" onClick={handleToday} data-testid="button-today">
             今天
@@ -276,7 +283,8 @@ export function CalendarView({
           const isTodayDate = isToday(day);
           const dayOfWeek = day.getDay();
           const hasVacancy = dayCases.filter((c) => !isPostponed(c)).length < MAX_CASES_PER_DAY;   // 延期的原案件不算排件量
-          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+          const wd = dayInfo(dateKey);
+          const isWeekend = !wd.workday;   // 週末、國定假日、手動調整的休假都不排件（補班日照常）
           const isPastDay = isBefore(startOfDay(day), today);
 
           if (showVacantOnly && (!hasVacancy || isWeekend || !isCurrentMonth)) {
@@ -305,6 +313,7 @@ export function CalendarView({
               key={dateKey}
               className={cn(
                 "bg-background min-h-[120px] 2xl:min-h-[150px] p-1 relative group",
+                !wd.workday && isCurrentMonth && "bg-[repeating-linear-gradient(135deg,rgb(239_68_68/0.06)_0_6px,transparent_6px_12px)]",
                 !isCurrentMonth && "bg-muted/50",
                 dimPastCases && isPastDay && !isTodayDate && "bg-muted/30"
               )}
@@ -325,6 +334,15 @@ export function CalendarView({
                 >
                   {format(day, "d")}
                 </button>
+                {wd.label && (
+                  <span
+                    className={cn("text-[11px] font-medium truncate mx-1", wd.kind === "makeup" ? "text-sky-700 dark:text-sky-400" : "text-red-600 dark:text-red-400")}
+                    title={wd.label}
+                    data-testid={`holiday-${dateKey}`}
+                  >
+                    {wd.label}
+                  </span>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -443,6 +461,8 @@ export function CalendarView({
           </div>
         ))}
       </div>
+
+      <WorkdayEditor open={editWorkdays} onOpenChange={setEditWorkdays} month={currentMonth} key={editWorkdays ? "open" : "closed"} />
 
       {/* 請假詳細（點月曆上的橫條） */}
       <Dialog open={leaveOpen} onOpenChange={(o) => !o && closeLeave()}>
