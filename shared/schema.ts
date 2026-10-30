@@ -181,8 +181,13 @@ export const surveyors = pgTable("surveyors", {
   businessAttribute: text("business_attribute").notNull().default("複丈組"), // 業務屬性
   points: integer("points").notNull().default(0), // 積分
   sortOrder: integer("sort_order").notNull().default(0), // 排序順序
+  color: text("color"), // 代表顏色（SURVEYOR_COLORS）；空白時依排序自動配色
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// 測量員代表顏色可選的顏色（樣式見 client/src/lib/surveyor-colors.ts）
+export const SURVEYOR_COLORS = ["blue", "green", "purple", "orange", "pink", "teal", "amber", "indigo", "rose", "cyan", "lime", "red", "sky", "fuchsia", "yellow", "slate"] as const;
+export type SurveyorColor = (typeof SURVEYOR_COLORS)[number];
 
 export const insertSurveyorSchema = createInsertSchema(surveyors).omit({
   id: true,

@@ -139,3 +139,18 @@ export async function upgradePostponeFields(): Promise<void> {
     console.error("延期欄位升級失敗：", error);
   }
 }
+
+// v2.19.0 測量員代表顏色：欄位不存在才新增；新增時把許玉欣改成萊姆綠（原本自動配到的橘色和劉盈村的琥珀色太像），只做一次
+export async function upgradeSurveyorColor(): Promise<void> {
+  try {
+    const { rows } = await pool.query(
+      "SELECT 1 FROM information_schema.columns WHERE table_schema = 'mapscheduler' AND table_name = 'surveyors' AND column_name = 'color'",
+    );
+    if (rows.length) return;
+    await pool.query("ALTER TABLE mapscheduler.surveyors ADD COLUMN IF NOT EXISTS color text");
+    await pool.query("UPDATE mapscheduler.surveyors SET color = 'lime' WHERE name = '許玉欣'");
+    console.log("[schema] 測量員代表顏色欄位已新增");
+  } catch (error) {
+    console.error("測量員顏色欄位升級失敗：", error);
+  }
+}
