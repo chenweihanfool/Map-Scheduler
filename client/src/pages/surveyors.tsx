@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { BUSINESS_ATTRIBUTES, type Surveyor } from "@shared/schema";
+import { BUSINESS_ATTRIBUTES, SURVEYOR_COLORS, type Surveyor } from "@shared/schema";
+import { COLOR_STYLES, surveyorColorKey } from "@/lib/surveyor-colors";
 import { useState } from "react";
 import { useDragSort } from "@/hooks/use-drag-sort";
 import { cn } from "@/lib/utils";
@@ -50,6 +51,7 @@ export default function SurveyorsPage() {
     name: "",
     businessAttribute: "複丈組" as string,
     points: 0,
+    color: null as string | null,
   });
 
   const { data: surveyorsList = [], isLoading } = useQuery<Surveyor[]>({
@@ -79,7 +81,7 @@ export default function SurveyorsPage() {
   const sorter = useDragSort(surveyorsList, (ids) => reorderMutation.mutate(ids));
 
   const createMutation = useMutation({
-    mutationFn: async (data: { name: string; businessAttribute: string; points: number }) => {
+    mutationFn: async (data: { name: string; businessAttribute: string; points: number; color?: string | null }) => {
       return apiRequest("POST", "/api/surveyors", data);
     },
     onSuccess: () => {
@@ -94,7 +96,7 @@ export default function SurveyorsPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { name?: string; businessAttribute?: string; points?: number } }) => {
+    mutationFn: async ({ id, data }: { id: string; data: { name?: string; businessAttribute?: string; points?: number; color?: string | null } }) => {
       return apiRequest("PATCH", `/api/surveyors/${id}`, data);
     },
     onSuccess: () => {
@@ -125,7 +127,7 @@ export default function SurveyorsPage() {
   });
 
   const resetForm = () => {
-    setFormData({ name: "", businessAttribute: "複丈組", points: 0 });
+    setFormData({ name: "", businessAttribute: "複丈組", points: 0, color: null });
   };
 
   const handleAdd = () => {
@@ -140,6 +142,7 @@ export default function SurveyorsPage() {
       name: surveyor.name,
       businessAttribute: surveyor.businessAttribute,
       points: surveyor.points,
+      color: surveyor.color ?? null,
     });
     setDialogOpen(true);
   };
@@ -251,6 +254,7 @@ export default function SurveyorsPage() {
                           <GripVertical className="h-4 w-4" />
                         </span>
                         <span className="text-sm text-muted-foreground w-6">{index + 1}.</span>
+                        <span className={cn("h-4 w-4 rounded-full shrink-0 ring-1 ring-black/10", COLOR_STYLES[surveyorColorKey(surveyor, index)].swatch)} title={`代表顏色：${COLOR_STYLES[surveyorColorKey(surveyor, index)].label}${surveyor.color ? "" : "（自動）"}`} />
                         <span className="font-medium truncate">{surveyor.name}</span>
                         <Badge variant={getAttributeVariant(surveyor.businessAttribute)}>
                           {surveyor.businessAttribute}
@@ -322,6 +326,38 @@ export default function SurveyorsPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>代表顏色</Label>
+              <div className="flex flex-wrap gap-2" data-testid="surveyor-color-picker">
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, color: null }))}
+                  className={cn("h-7 px-2 rounded-full border text-xs", !formData.color ? "ring-2 ring-primary ring-offset-2" : "text-muted-foreground")}
+                  data-testid="color-auto"
+                >
+                  自動
+                </button>
+                {SURVEYOR_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    title={COLOR_STYLES[c].label}
+                    aria-label={COLOR_STYLES[c].label}
+                    aria-pressed={formData.color === c}
+                    onClick={() => setFormData(prev => ({ ...prev, color: c }))}
+                    className={cn("h-7 w-7 rounded-full ring-1 ring-black/10", COLOR_STYLES[c].swatch, formData.color === c && "ring-2 ring-primary ring-offset-2")}
+                    data-testid={`color-${c}`}
+                  />
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {(() => {
+                  const used = surveyorsList.filter((s) => s.id !== editingSurveyor?.id).map((s) => ({ s, k: surveyorColorKey(s, surveyorsList.indexOf(s)) }));
+                  const same = formData.color ? used.filter((u) => u.k === formData.color).map((u) => u.s.name) : [];
+                  return same.length ? `${same.join("、")} 也是這個顏色` : "月曆案件與首頁測量員卡片會用這個顏色；選「自動」依排序配色";
+                })()}
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="points">目前積分</Label>

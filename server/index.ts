@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { upgradeAgents, upgradeCaseTypeAliases, upgradeCourtFields, upgradeLeaveType, upgradePostponeFields, upgradeReceiveFields } from "./schema-upgrade";
+import { upgradeAgents, upgradeCaseTypeAliases, upgradeCourtFields, upgradeLeaveType, upgradePostponeFields, upgradeReceiveFields, upgradeSurveyorColor } from "./schema-upgrade";
 
 const app = express();
 const httpServer = createServer(app);
@@ -73,6 +73,7 @@ app.use((req, res, next) => {
   await upgradeCourtFields();
   await upgradeCaseTypeAliases();
   await upgradePostponeFields();
+  await upgradeSurveyorColor();
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
