@@ -22,10 +22,18 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.20.0";
+const APP_VERSION = "v2.21.0";
 const RELEASE_DATE = "2026-10-30";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.21.0",
+    date: "2026-10-30",
+    items: [
+      "月曆非工作日更醒目：日期改紅色加大粗體，國定假日以紅橘漸層標籤加大字浮水印、調整的休假為琥珀標籤、補班為藍色標籤，週末標「週六／週日」",
+      "排到非工作日（週末、國定假日、調整的休假）時跳出警示，確認後才排定；新增、修改日期、延期、更改延期日期都會提醒，補班日不提醒",
+    ],
+  },
   {
     version: "v2.20.0",
     date: "2026-10-30",
