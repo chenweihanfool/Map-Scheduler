@@ -127,3 +127,14 @@ export async function upgradeCaseTypeAliases(): Promise<void> {
     console.error("案件類型名稱統一失敗：", error);
   }
 }
+
+// v2.16.0 延期：新增狀態、延期理由與前後案件連結欄位（欄位不存在才新增）
+export async function upgradePostponeFields(): Promise<void> {
+  try {
+    for (const col of ["status", "postpone_reason", "postponed_to_id", "postponed_to_date", "postponed_to_time", "postponed_from_id", "postponed_from_date", "postponed_from_time"]) {
+      await pool.query(`ALTER TABLE mapscheduler.survey_cases ADD COLUMN IF NOT EXISTS ${col} text`);
+    }
+  } catch (error) {
+    console.error("延期欄位升級失敗：", error);
+  }
+}

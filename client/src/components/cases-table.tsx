@@ -43,7 +43,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { caseLabel, receiveSummary } from "@/lib/receive";
-import type { SurveyCase } from "@shared/schema";
+import { isPostponed, isPostponePending, type SurveyCase } from "@shared/schema";
 
 interface CasesTableProps {
   cases: SurveyCase[];
@@ -282,6 +282,9 @@ export function CasesTable({ cases, isLoading, onEdit, dimPastCases }: CasesTabl
                   <Badge variant="outline" className="text-xs">
                     {surveyCase.caseType}
                   </Badge>
+                  {isPostponed(surveyCase) && (
+                    <Badge className="text-xs ml-1 bg-amber-500 hover:bg-amber-500 text-white">{isPostponePending(surveyCase) ? "延期・未排日期" : "延期"}</Badge>
+                  )}
                 </TableCell>
                 <TableCell data-testid={`text-land-parcel-${surveyCase.id}`}>
                   {surveyCase.landParcel}

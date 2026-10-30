@@ -1,6 +1,9 @@
 import { format } from "date-fns";
 import { zhTW } from "date-fns/locale";
-import { MapPin, Calendar, Clock, User, FileText, CheckCircle, XCircle, Loader2, Edit } from "lucide-react";
+import { MapPin, Calendar, Clock, User, FileText, CheckCircle, XCircle, Loader2, Edit, CalendarClock, ArrowRight, ArrowLeft } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import type { SurveyCase } from "@shared/schema";
+import { isPostponed, isPostponePending, type SurveyCase } from "@shared/schema";
 import { caseLabel, formatRocDate, applicantText } from "@/lib/receive";
 
 interface CaseDetailDialogProps {
@@ -18,10 +21,23 @@ interface CaseDetailDialogProps {
   onOpenChange: (open: boolean) => void;
   caseData: SurveyCase | null;
   onEdit?: (caseData: SurveyCase) => void;
+  onPostpone?: (caseData: SurveyCase) => void;
+  onOpenCase?: (id: string) => void;
 }
 
-export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit }: CaseDetailDialogProps) {
+export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit, onPostpone, onOpenCase }: CaseDetailDialogProps) {
+  const { toast } = useToast();
+  const cancelMutation = useMutation({
+    mutationFn: async (id: string) => apiRequest("POST", `/api/cases/${id}/postpone/cancel`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      toast({ title: "已取消延期" });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => toast({ title: "取消失敗", description: error.message, variant: "destructive" }),
+  });
   if (!caseData) return null;
+  const postponed = isPostponed(caseData), pending = isPostponePending(caseData);
 
   const getCoordinateStatusBadge = () => {
     switch (caseData.coordinateStatus) {
@@ -73,6 +89,22 @@ export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit }: CaseD
                 </p>
               )}
             </div>
+            <div className="flex items-center gap-2 shrink-0">
+            {onPostpone && (!postponed || pending) && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-amber-500 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
+                onClick={() => {
+                  onOpenChange(false);
+                  onPostpone(caseData);
+                }}
+                data-testid="button-postpone-case"
+              >
+                <CalendarClock className="h-4 w-4 mr-1" />
+                {pending ? "排定延期日期" : "延期"}
+              </Button>
+            )}
             {onEdit && (
               <Button 
                 variant="outline" 
@@ -87,14 +119,44 @@ export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit }: CaseD
                 編輯
               </Button>
             )}
+            </div>
           </div>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="flex items-center gap-2 flex-wrap">
             <Badge variant="secondary">{caseData.caseType}</Badge>
+            {postponed && (
+              <Badge className="bg-amber-500 hover:bg-amber-500 text-white" data-testid="badge-postponed">
+                {pending ? "延期・未排日期" : "延期"}
+              </Badge>
+            )}
             {getCoordinateStatusBadge()}
           </div>
+
+          {(postponed || caseData.postponedFromId) && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 p-3 text-sm space-y-1.5" data-testid="postpone-info">
+              {postponed && <div><span className="font-medium">延期理由：</span>{caseData.postponeReason || "（未填）"}</div>}
+              {caseData.postponedToId && (
+                <button type="button" className="flex items-center gap-1 text-amber-700 dark:text-amber-400 hover:underline" onClick={() => onOpenCase?.(caseData.postponedToId!)}>
+                  已延期至 {caseData.postponedToDate} {caseData.postponedToTime}<ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {pending && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-amber-700 dark:text-amber-400">尚未排定延期日期</span>
+                  <Button variant="ghost" size="sm" className="h-7" onClick={() => cancelMutation.mutate(caseData.id)} disabled={cancelMutation.isPending} data-testid="button-cancel-postpone">
+                    取消延期
+                  </Button>
+                </div>
+              )}
+              {caseData.postponedFromId && (
+                <button type="button" className="flex items-center gap-1 text-amber-700 dark:text-amber-400 hover:underline" onClick={() => onOpenCase?.(caseData.postponedFromId!)}>
+                  <ArrowLeft className="h-3.5 w-3.5" />由 {caseData.postponedFromDate} {caseData.postponedFromTime} 延期而來
+                </button>
+              )}
+            </div>
+          )}
 
           <Separator />
 

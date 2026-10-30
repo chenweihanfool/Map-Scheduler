@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import type { SurveyCase, Surveyor, SurveyorLeave } from "@shared/schema";
+import { isPostponed, isPostponePending, type SurveyCase, type Surveyor, type SurveyorLeave } from "@shared/schema";
 import { LeaveForm, leaveStyle, leaveBarClass } from "@/components/leave-form";
 import { applicantText } from "@/lib/receive";
 
@@ -286,7 +286,7 @@ export function CalendarView({
           const isCurrentMonth = isSameMonth(day, currentMonth);
           const isTodayDate = isToday(day);
           const dayOfWeek = day.getDay();
-          const hasVacancy = dayCases.length < MAX_CASES_PER_DAY;
+          const hasVacancy = dayCases.filter((c) => !isPostponed(c)).length < MAX_CASES_PER_DAY;   // 延期的原案件不算排件量
           const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
           const isPastDay = isBefore(startOfDay(day), today);
 
@@ -563,6 +563,9 @@ export function CalendarView({
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs font-medium opacity-70">{c.scheduledTime}</span>
                               <Badge variant="outline" className="text-xs px-1 py-0 h-4">{c.caseType}</Badge>
+                              {isPostponed(c) && (
+                                <Badge className="text-xs px-1 py-0 h-4 bg-amber-500 hover:bg-amber-500 text-white">{isPostponePending(c) ? "延期・未排日期" : `延期至 ${c.postponedToDate?.slice(5).replace("-", "/")}`}</Badge>
+                              )}
                             </div>
                             <div className="text-sm font-medium mt-0.5 truncate">{c.landParcel}</div>
                             {(applicantText(c) || c.agent) && (
@@ -635,10 +638,13 @@ function CaseChip({
         className={cn(
           "w-full text-left text-xs px-1.5 py-0.5 rounded border truncate hover-elevate",
           colorClass,
-          dimmed && "opacity-40"
+          dimmed && "opacity-40",
+          isPostponed(c) && !isPostponePending(c) && "line-through opacity-50",
+          isPostponePending(c) && "ring-1 ring-amber-500",
         )}
         data-testid={`case-${c.id}`}
       >
+        {isPostponed(c) && <span className="no-underline font-semibold text-amber-700 dark:text-amber-400 mr-1">{isPostponePending(c) ? "延期未排" : "延期"}</span>}
         {c.scheduledTime} {c.caseType} {c.landParcel}
         {c.agent && <span className="opacity-70">・{c.agent}</span>}
       </button>
