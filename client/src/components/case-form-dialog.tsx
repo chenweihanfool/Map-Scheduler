@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarClock, CalendarIcon, CalendarOff, Loader2, MapPin, Sparkles, Trash2 } from "lucide-react";
+import { CalendarClock, CalendarIcon, CalendarOff, Loader2, MapPin, Plus, Scissors, Sparkles, Trash2, X } from "lucide-react";
 import { LeaveForm } from "@/components/leave-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,7 +43,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import { CASE_TYPES, type SurveyCase, type Surveyor, type SystemSettings, type SurveyorLeave, type CaseTypeRecord, type Agent, RECEIVE_WORDS, COURT_NAMES, isCourtCase, isPostponed, isPostponePending } from "@shared/schema";
+import { CASE_TYPES, type SurveyCase, type Surveyor, type SystemSettings, type SurveyorLeave, type CaseTypeRecord, type Agent, RECEIVE_WORDS, COURT_NAMES, isCourtCase, isPostponed, isPostponePending, subsOf } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Star, Info } from "lucide-react";
@@ -157,6 +157,13 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
     if (open) setKind("case");
   }, [open]);
   const isLeave = !isEditing && kind === "leave";
+  // 連件：子件的案號、類型、地段、地號（其餘欄位與主件共用）
+  type SubRow = { caseNumber: string; caseType: string; section: string; lotNumber: string };
+  const [subRows, setSubRows] = useState<SubRow[]>([]);
+  const setSub = (i: number, patch: Partial<SubRow>) => setSubRows((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const subsPayload = () => subRows
+    .map((r) => ({ caseNumber: r.caseNumber.trim(), caseType: r.caseType, landParcel: `${r.section.trim()}${r.lotNumber.trim()}` }))
+    .filter((r) => r.caseNumber || r.landParcel);
   const [suggestedSurveyor, setSuggestedSurveyor] = useState<Surveyor | null>(null);
   const [assignmentMode, setAssignmentMode] = useState<string>("sequential");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -352,6 +359,10 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
         scheduledTime = "上午 09:00";
       }
       
+      setSubRows(subsOf(editCase ?? {}).map((x) => {
+        const p = parseLandParcel(x.landParcel);
+        return { caseNumber: x.caseNumber, caseType: x.caseType, section: p.section, lotNumber: p.lotNumber };
+      }));
       form.reset({
         receiveDate: editCase?.receiveDate ?? "",
         receiveWord: editCase?.receiveWord ?? "",
@@ -400,7 +411,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
     mutationFn: async (data: FormValues) => {
       const { section, lotNumber, ...rest } = withCourtFields(data);
       const landParcel = `${section}${lotNumber}`;
-      const response = await apiRequest("POST", "/api/cases", { ...rest, landParcel });
+      const response = await apiRequest("POST", "/api/cases", { ...rest, landParcel, subs: subsPayload() });
       const result = await response.json();
       
       const selectedSurveyor = surveyorsList.find(s => s.name === data.surveyor);
@@ -454,7 +465,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
     mutationFn: async (data: FormValues) => {
       const { section, lotNumber, ...rest } = withCourtFields(data);
       const landParcel = `${section}${lotNumber}`;
-      const response = await apiRequest("PATCH", `/api/cases/${editCase?.id}`, { ...rest, landParcel });
+      const response = await apiRequest("PATCH", `/api/cases/${editCase?.id}`, { ...rest, landParcel, subs: subsPayload() });
       return response;
     },
     onSuccess: () => {
@@ -496,6 +507,32 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
         variant: "destructive",
       });
     },
+  });
+
+  // 拆件：子件變成獨立案件（沿用主件目前的其他欄位），並從主件移除
+  const splitMutation = useMutation({
+    mutationFn: async (i: number) => {
+      const row = subRows[i];
+      const { section, lotNumber, ...rest } = withCourtFields(form.getValues());
+      await apiRequest("POST", "/api/cases", {
+        ...rest,
+        caseNumber: row.caseNumber.trim(),
+        caseType: row.caseType || rest.caseType,
+        landParcel: `${row.section.trim()}${row.lotNumber.trim()}`,
+        subs: [],
+      });
+      const remaining = subRows.filter((_, j) => j !== i);
+      await apiRequest("PATCH", `/api/cases/${editCase!.id}`, {
+        subs: remaining.map((r) => ({ caseNumber: r.caseNumber.trim(), caseType: r.caseType, landParcel: `${r.section.trim()}${r.lotNumber.trim()}` })),
+      });
+      return { remaining, row };
+    },
+    onSuccess: ({ remaining, row }) => {
+      setSubRows(remaining);
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      toast({ title: `已拆件：${row.caseNumber || row.lotNumber || "這一件"} 成為獨立案件` });
+    },
+    onError: (error: Error) => toast({ title: "拆件失敗", description: error.message, variant: "destructive" }),
   });
 
   const onSubmit = (data: FormValues) => {
@@ -700,6 +737,45 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
                   </FormItem>
                 )}
               />
+            </div>
+
+            {/* 連件 */}
+            <div className="space-y-2" data-testid="linked-cases">
+              {subRows.length > 0 && (
+                <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
+                  <div className="text-sm font-medium">連件（共用申請人、代理人、收件、測量員、排定日期時間、備註）</div>
+                  {subRows.map((row, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_1fr_1.4fr_1fr_auto] gap-2 items-center" data-testid={`sub-row-${i}`}>
+                      <Input value={row.caseNumber} onChange={(e) => setSub(i, { caseNumber: e.target.value })} placeholder={`第 ${i + 2} 件案號`} className="h-9" data-testid={`input-sub-number-${i}`} />
+                      <Select value={row.caseType} onValueChange={(v) => setSub(i, { caseType: v })}>
+                        <SelectTrigger className="h-9" data-testid={`select-sub-type-${i}`}><SelectValue placeholder="類型" /></SelectTrigger>
+                        <SelectContent>
+                          {caseTypeOptions.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <SectionCombobox value={row.section} onChange={(v) => setSub(i, { section: v })} placeholder="地段" className="h-9" />
+                      <Input value={row.lotNumber} onChange={(e) => setSub(i, { lotNumber: e.target.value })} placeholder="地號" className="h-9" data-testid={`input-sub-lot-${i}`} />
+                      <div className="flex">
+                        {isEditing && (
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title="拆件：變成獨立案件" disabled={splitMutation.isPending}
+                            onClick={() => { if (confirm("把這一件拆成獨立案件？（沿用主件目前的申請人、代理人、測量員、日期等）")) splitMutation.mutate(i); }}
+                            data-testid={`button-split-${i}`}>
+                            <Scissors className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title="移除這一件" onClick={() => setSubRows((rows) => rows.filter((_, j) => j !== i))} data-testid={`button-remove-sub-${i}`}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground">第 1 件為上方的主件；連件算 1 件排件量，座標只查主件。</p>
+                </div>
+              )}
+              <Button type="button" variant="outline" size="sm" onClick={() => setSubRows((rows) => [...rows, { caseNumber: "", caseType: form.getValues("caseType") || "", section: form.getValues("section") || "", lotNumber: "" }])} data-testid="button-add-sub">
+                <Plus className="h-4 w-4 mr-1" />
+                連件
+              </Button>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

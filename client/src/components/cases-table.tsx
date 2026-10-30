@@ -43,7 +43,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { caseLabel, receiveSummary } from "@/lib/receive";
-import { isPostponed, isPostponePending, type SurveyCase } from "@shared/schema";
+import { isPostponed, isPostponePending, subsOf, type SurveyCase } from "@shared/schema";
 
 interface CasesTableProps {
   cases: SurveyCase[];
@@ -287,7 +287,7 @@ export function CasesTable({ cases, isLoading, onEdit, dimPastCases }: CasesTabl
                   )}
                 </TableCell>
                 <TableCell data-testid={`text-land-parcel-${surveyCase.id}`}>
-                  {surveyCase.landParcel}
+                  {surveyCase.landParcel}{subsOf(surveyCase).length > 0 && <span className="ml-1 text-xs font-semibold text-primary" title={subsOf(surveyCase).map((x) => [x.caseNumber, x.caseType, x.landParcel].filter(Boolean).join(" ")).join("、")}>＋{subsOf(surveyCase).length}</span>}
                 </TableCell>
                 <TableCell data-testid={`text-surveyor-${surveyCase.id}`}>
                   {surveyCase.surveyor}

@@ -21,10 +21,20 @@ import { cn } from "@/lib/utils";
 import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 
-const APP_VERSION = "v2.16.0";
+const APP_VERSION = "v2.17.0";
 const RELEASE_DATE = "2026-10-30";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.17.0",
+    date: "2026-10-30",
+    items: [
+      "新增「連件」（比照測量案件排程）：編輯案件按「＋ 連件」，每件填案號、類型、地段、地號；其餘欄位與主件共用",
+      "連件算 1 件排件量與積分，座標只查主件；月曆、列表顯示「＋N」，滑鼠提示與案件詳細列出全部連件",
+      "子件可「拆件」變成獨立案件；搜尋也找得到連件的案號、地號",
+      "測量案件排程同步時連件會一併帶入、比對",
+    ],
+  },
   {
     version: "v2.16.0",
     date: "2026-10-30",

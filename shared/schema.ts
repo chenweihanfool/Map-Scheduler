@@ -105,6 +105,8 @@ export const surveyCases = pgTable("survey_cases", {
   postponedFromId: text("postponed_from_id"), // 由哪一件延期而來
   postponedFromDate: text("postponed_from_date"),
   postponedFromTime: text("postponed_from_time"),
+  // 連件（比照測量案件排程）：子件只記自己的案號、類型、地段地號，其餘欄位與主件共用；排件量、積分算 1 件，座標只查主件
+  subs: jsonb("subs").$type<SubCase[]>(),
   agent: text("agent"), // 代理人（選填）
   surveyor: text("surveyor").notNull(), // 測量員
   surveyDate: text("survey_date").notNull(), // 日期 (YYYY-MM-DD format)
@@ -117,11 +119,21 @@ export const surveyCases = pgTable("survey_cases", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const subCaseSchema = z.object({
+  caseNumber: z.string().default(""),
+  caseType: z.string().default(""),
+  landParcel: z.string().default(""),
+});
+export type SubCase = z.infer<typeof subCaseSchema>;
+export const subsOf = (c: { subs?: SubCase[] | null }) => (c.subs ?? []).filter((x) => x && (x.caseNumber || x.landParcel));
+
 export const insertSurveyCaseSchema = createInsertSchema(surveyCases).omit({
   id: true,
   createdAt: true,
   coordinateStatus: true,
   coordinateSource: true,
+}).extend({
+  subs: z.array(subCaseSchema).nullable().optional(),
 });
 
 export const updateSurveyCaseSchema = insertSurveyCaseSchema.partial();

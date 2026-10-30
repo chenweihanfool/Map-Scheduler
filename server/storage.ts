@@ -12,7 +12,7 @@ import {
   POSTPONED,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, asc, and, gte, lte, or, ilike } from "drizzle-orm";
+import { eq, desc, asc, and, gte, lte, or, ilike, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -91,6 +91,7 @@ export class DatabaseStorage implements IStorage {
           ilike(surveyCases.owner, searchPattern),
           ilike(surveyCases.courtDivision, searchPattern),
           ilike(surveyCases.courtDocNo, searchPattern),
+          sql`${surveyCases.subs}::text ilike ${searchPattern}`,
           ilike(surveyCases.agent, searchPattern),
           ilike(surveyCases.surveyor, searchPattern)
         )

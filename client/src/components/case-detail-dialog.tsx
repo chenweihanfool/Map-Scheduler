@@ -13,7 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { isPostponed, isPostponePending, type SurveyCase } from "@shared/schema";
+import { isPostponed, isPostponePending, subsOf, type SurveyCase } from "@shared/schema";
 import { caseLabel, formatRocDate, applicantText } from "@/lib/receive";
 
 interface CaseDetailDialogProps {
@@ -166,6 +166,14 @@ export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit, onPostp
               <div>
                 <p className="text-sm font-medium">地段地號</p>
                 <p className="text-sm text-muted-foreground">{caseData.landParcel}</p>
+                {subsOf(caseData).length > 0 && (
+                  <div className="mt-1.5 text-sm" data-testid="detail-subs">
+                    <p className="font-medium">連件 {subsOf(caseData).length} 件</p>
+                    {subsOf(caseData).map((x, i) => (
+                      <p key={i} className="text-muted-foreground">{[x.caseNumber && `案號 ${x.caseNumber}`, x.caseType, x.landParcel].filter(Boolean).join("・")}</p>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
