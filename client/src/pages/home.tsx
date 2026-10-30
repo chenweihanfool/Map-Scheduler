@@ -19,10 +19,17 @@ import { ChangelogTimeline, type ChangelogRelease } from "@/components/changelog
 import { cn } from "@/lib/utils";
 import type { SurveyCase, Surveyor, SystemSettings } from "@shared/schema";
 
-const APP_VERSION = "v2.15.1";
+const APP_VERSION = "v2.15.2";
 const RELEASE_DATE = "2026-10-30";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.15.2",
+    date: "2026-10-30",
+    items: [
+      "修正：系統設定在尚未設定案件類型時，顯示的預設類型清單與實際不符",
+    ],
+  },
   {
     version: "v2.15.1",
     date: "2026-10-30",
