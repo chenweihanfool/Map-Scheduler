@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
@@ -137,7 +138,10 @@ export async function registerRoutes(
         }
       }
 
+      // 課長不參與排件，不列入推薦
+      const excluded = new Set((await storage.getAllSurveyors()).filter(s => s.businessAttribute === "課長").map(s => s.name));
       const recommendations = Object.entries(surveyorScores)
+        .filter(([surveyor]) => !excluded.has(surveyor))
         .map(([surveyor, data]) => ({
           surveyor,
           score: data.score,
@@ -290,6 +294,21 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching surveyors:", error);
       res.status(500).json({ error: "Failed to fetch surveyors" });
+    }
+  });
+
+  // 拖動排序：依傳入的 id 順序重設 sortOrder（順序模式的排件順序也跟著這個順序）
+  const orderSchema = z.object({ ids: z.array(z.string()).min(1) });
+
+  app.put("/api/surveyors/order", async (req, res) => {
+    try {
+      const parsed = orderSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Validation failed" });
+      await storage.reorderSurveyors(parsed.data.ids);
+      res.json(await storage.getAllSurveyors());
+    } catch (error) {
+      console.error("Error reordering surveyors:", error);
+      res.status(500).json({ error: "Failed to reorder surveyors" });
     }
   });
 
@@ -618,6 +637,18 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error creating case type:", error);
       res.status(500).json({ error: "Failed to create case type" });
+    }
+  });
+
+  app.put("/api/case-types/order", async (req, res) => {
+    try {
+      const parsed = orderSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Validation failed" });
+      await storage.reorderCaseTypes(parsed.data.ids);
+      res.json(await storage.getAllCaseTypes());
+    } catch (error) {
+      console.error("Error reordering case types:", error);
+      res.status(500).json({ error: "Failed to reorder case types" });
     }
   });
 

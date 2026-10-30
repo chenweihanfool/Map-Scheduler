@@ -9,6 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { BUSINESS_ATTRIBUTES, type Surveyor } from "@shared/schema";
 import { useState } from "react";
+import { useDragSort } from "@/hooks/use-drag-sort";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -53,6 +55,28 @@ export default function SurveyorsPage() {
   const { data: surveyorsList = [], isLoading } = useQuery<Surveyor[]>({
     queryKey: ["/api/surveyors"],
   });
+
+  const reorderMutation = useMutation({
+    mutationFn: async (ids: string[]) => apiRequest("PUT", "/api/surveyors/order", { ids }),
+    onMutate: (ids: string[]) => {
+      // 先在畫面上換好順序，不用等伺服器
+      const prev = queryClient.getQueryData<Surveyor[]>(["/api/surveyors"]);
+      if (prev) {
+        const byId = new Map(prev.map((s) => [s.id, s]));
+        queryClient.setQueryData(["/api/surveyors"], ids.map((id, i) => ({ ...byId.get(id)!, sortOrder: i })).filter((s) => s.id));
+      }
+      return { prev };
+    },
+    onError: (error: Error, _ids, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(["/api/surveyors"], ctx.prev);
+      toast({ title: "排序儲存失敗", description: error.message, variant: "destructive" });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/surveyors"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/surveyors/next/suggested"] });
+    },
+  });
+  const sorter = useDragSort(surveyorsList, (ids) => reorderMutation.mutate(ids));
 
   const createMutation = useMutation({
     mutationFn: async (data: { name: string; businessAttribute: string; points: number }) => {
@@ -148,6 +172,7 @@ export default function SurveyorsPage() {
       case "複丈組": return "default";
       case "政策組": return "secondary";
       case "重測組": return "outline";
+      case "課長": return "outline";
       default: return "secondary";
     }
   };
@@ -196,7 +221,8 @@ export default function SurveyorsPage() {
             <CardHeader>
               <CardTitle>測量員清單</CardTitle>
               <CardDescription>
-                管理測量員資料與業務屬性。只有「複丈組」的測量員會參與自動排件。
+                管理測量員資料與業務屬性。只有「複丈組」的測量員會參與自動排件（「課長」不參與排件，也不列入推薦）。
+                按住左側 <GripVertical className="inline h-3.5 w-3.5 align-text-bottom" /> 上下拖動可調整順序，順序模式會依這個順序輪流排件。
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -206,14 +232,24 @@ export default function SurveyorsPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {surveyorsList.map((surveyor, index) => (
+                  {sorter.ordered.map((surveyor, index) => (
                     <div
                       key={surveyor.id}
-                      className="flex items-center justify-between gap-3 p-3 rounded-lg border hover-elevate"
+                      {...sorter.rowProps(surveyor.id)}
+                      className={cn(
+                        "flex items-center justify-between gap-3 p-3 rounded-lg border hover-elevate bg-background",
+                        sorter.draggingId === surveyor.id && "ring-2 ring-primary shadow-lg relative z-10",
+                      )}
                       data-testid={`surveyor-row-${surveyor.id}`}
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <GripVertical className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span
+                          {...sorter.handleProps(surveyor.id, surveyor.name)}
+                          className="-m-2 p-2 rounded cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring flex-shrink-0 select-none"
+                          data-testid={`drag-surveyor-${surveyor.id}`}
+                        >
+                          <GripVertical className="h-4 w-4" />
+                        </span>
                         <span className="text-sm text-muted-foreground w-6">{index + 1}.</span>
                         <span className="font-medium truncate">{surveyor.name}</span>
                         <Badge variant={getAttributeVariant(surveyor.businessAttribute)}>

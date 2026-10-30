@@ -87,12 +87,16 @@ export function CalendarView({
   const today = startOfDay(new Date());
   const [detailDay, setDetailDay] = useState<{ date: Date; dateKey: string } | null>(null);
   const [hideWeekends, setHideWeekends] = useState(true);
+  // 開關與內容分開：關閉時保留內容，淡出動畫期間標題不會變空白
   const [openLeave, setOpenLeave] = useState<SurveyorLeave | null>(null);
+  const [leaveOpen, setLeaveOpen] = useState(false);
   const [editingLeave, setEditingLeave] = useState(false);
   const showLeave = (l: SurveyorLeave) => {
     setEditingLeave(false);
     setOpenLeave(l);
+    setLeaveOpen(true);
   };
+  const closeLeave = () => setLeaveOpen(false);
 
   const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
     queryKey: ["/api/surveyors"],
@@ -451,7 +455,7 @@ export function CalendarView({
       </div>
 
       {/* 請假詳細（點月曆上的橫條） */}
-      <Dialog open={!!openLeave} onOpenChange={(o) => !o && setOpenLeave(null)}>
+      <Dialog open={leaveOpen} onOpenChange={(o) => !o && closeLeave()}>
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto" data-testid="dialog-leave-detail">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -463,7 +467,7 @@ export function CalendarView({
             <LeaveForm
               open={editingLeave}
               editingLeave={openLeave}
-              onDone={() => setOpenLeave(null)}
+              onDone={closeLeave}
               onCancel={() => setEditingLeave(false)}
             />
           ) : (
@@ -482,7 +486,7 @@ export function CalendarView({
                 <dd>{openLeave.reason || "—"}</dd>
               </dl>
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={() => setOpenLeave(null)}>關閉</Button>
+                <Button variant="outline" onClick={closeLeave}>關閉</Button>
                 <Button onClick={() => setEditingLeave(true)} data-testid="button-edit-leave-detail">
                   <Pencil className="h-4 w-4 mr-1" />
                   編輯

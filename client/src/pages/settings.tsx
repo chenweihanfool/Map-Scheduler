@@ -10,8 +10,10 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { AgentsCard } from "@/components/agents-card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { CASE_TYPES, type SystemSettings, type CaseTypeRecord } from "@shared/schema";
+import { CASE_TYPES, DEFAULT_CASE_TYPES, type SystemSettings, type CaseTypeRecord } from "@shared/schema";
 import { useState, useEffect } from "react";
+import { useDragSort } from "@/hooks/use-drag-sort";
+import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -28,6 +30,26 @@ export default function SettingsPage() {
   const { data: caseTypesList = [], isLoading: caseTypesLoading } = useQuery<CaseTypeRecord[]>({
     queryKey: ["/api/case-types"],
   });
+
+  const isDefaultType = (name: string) => (DEFAULT_CASE_TYPES as readonly string[]).includes(name);
+
+  const reorderCaseTypesMutation = useMutation({
+    mutationFn: async (ids: string[]) => apiRequest("PUT", "/api/case-types/order", { ids }),
+    onMutate: (ids: string[]) => {
+      const prev = queryClient.getQueryData<CaseTypeRecord[]>(["/api/case-types"]);
+      if (prev) {
+        const byId = new Map(prev.map((t) => [t.id, t]));
+        queryClient.setQueryData(["/api/case-types"], ids.map((id, i) => ({ ...byId.get(id)!, sortOrder: i })));
+      }
+      return { prev };
+    },
+    onError: (error: Error, _ids, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(["/api/case-types"], ctx.prev);
+      toast({ title: "排序儲存失敗", description: error.message, variant: "destructive" });
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["/api/case-types"] }),
+  });
+  const typeSorter = useDragSort(caseTypesList, (ids) => reorderCaseTypesMutation.mutate(ids));
 
   const activeCaseTypes = caseTypesList.length > 0 
     ? caseTypesList.map(t => t.name) 
@@ -88,7 +110,7 @@ export default function SettingsPage() {
   });
 
   const deleteCaseTypeMutation = useMutation({
-    mutationFn: async (id: number) => {
+    mutationFn: async (id: string) => {
       return apiRequest("DELETE", `/api/case-types/${id}`);
     },
     onSuccess: () => {
@@ -256,20 +278,30 @@ export default function SettingsPage() {
               </div>
               <div className="space-y-2">
                 {caseTypesList.length > 0 ? (
-                  caseTypesList.map((ct) => (
+                  typeSorter.ordered.map((ct) => (
                     <div 
                       key={ct.id} 
-                      className="flex items-center justify-between p-3 rounded-lg border"
+                      {...typeSorter.rowProps(ct.id)}
+                      className={cn(
+                        "flex items-center justify-between p-3 rounded-lg border bg-background",
+                        typeSorter.draggingId === ct.id && "ring-2 ring-primary shadow-lg relative z-10",
+                      )}
                       data-testid={`case-type-item-${ct.id}`}
                     >
                       <div className="flex items-center gap-2">
-                        <GripVertical className="h-4 w-4 text-muted-foreground" />
+                        <span
+                          {...typeSorter.handleProps(ct.id, ct.name)}
+                          className="-m-2 p-2 rounded cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring select-none"
+                          data-testid={`drag-case-type-${ct.id}`}
+                        >
+                          <GripVertical className="h-4 w-4" />
+                        </span>
                         <span className="font-medium">{ct.name}</span>
-                        {ct.isDefault && (
+                        {isDefaultType(ct.name) && (
                           <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">預設</span>
                         )}
                       </div>
-                      {!ct.isDefault && (
+                      {(
                         <Button
                           variant="ghost"
                           size="icon"
