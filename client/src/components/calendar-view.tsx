@@ -39,6 +39,7 @@ const leavePeriod = (l: SurveyorLeave) => {
 // 一筆請假在某一週的橫條：從第 start 欄到第 end 欄（含），lane 為第幾條
 interface LeaveSegment {
   leave: SurveyorLeave;
+  group: SurveyorLeave[];   // 同類型、同時段的請假合成一條（例 三人同一天上課）
   start: number;
   end: number;
   lane: number;
@@ -172,16 +173,24 @@ export function CalendarView({
   // 依週切開：每週一列，請假跨天時在該週畫成一條橫條，跨週就在下一週接著畫
   const cols = hideWeekends ? 5 : 7;
   const weeks = useMemo(() => {
-    const out: { days: Date[]; segments: LeaveSegment[]; lanes: number }[] = [];
+    // 同類型、同起訖時間的請假合併成一條橫條，避免一天多人請假時橫條疊好幾層把格子擠扁
+    const merged = new Map<string, SurveyorLeave[]>();
+    filteredLeaves.forEach((l) => {
+      const key = `${l.leaveType || "休假"}|${l.startDatetime}|${l.endDatetime}`;
+      merged.set(key, [...(merged.get(key) || []), l]);
+    });
+    const groups = Array.from(merged.values());
+    const out: { days: Date[]; segments: LeaveSegment[]; lanes: number; dayLanes: number[] }[] = [];
     for (let i = 0; i < days.length; i += cols) {
       const weekDays = days.slice(i, i + cols);
       const keys = weekDays.map((d) => format(d, "yyyy-MM-dd"));
-      const raw = filteredLeaves
-        .map((leave) => {
+      const raw = groups
+        .map((group) => {
+          const leave = group[0];
           const sd = leave.startDatetime.slice(0, 10), ed = leave.endDatetime.slice(0, 10);
           const idx = keys.map((k, j) => (k >= sd && k <= ed ? j : -1)).filter((j) => j >= 0);
           if (!idx.length) return null;
-          return { leave, start: idx[0], end: idx[idx.length - 1], isStart: keys[idx[0]] === sd, isEnd: keys[idx[idx.length - 1]] === ed };
+          return { leave, group, start: idx[0], end: idx[idx.length - 1], isStart: keys[idx[0]] === sd, isEnd: keys[idx[idx.length - 1]] === ed };
         })
         .filter((x): x is Omit<LeaveSegment, "lane"> => !!x)
         .sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
@@ -192,7 +201,9 @@ export function CalendarView({
         laneEnds[lane] = seg.end;
         return { ...seg, lane };
       });
-      out.push({ days: weekDays, segments, lanes: laneEnds.length });
+      // 每一天只預留蓋到這天的橫條高度，沒有請假的日子案件直接接在日期下面
+      const dayLanes = weekDays.map((_, j) => Math.max(0, ...segments.filter((g) => g.start <= j && g.end >= j).map((g) => g.lane + 1)));
+      out.push({ days: weekDays, segments, lanes: laneEnds.length, dayLanes });
     }
     return out;
   }, [days, cols, filteredLeaves]);
@@ -200,6 +211,9 @@ export function CalendarView({
   const handlePrevMonth = () => onMonthChange(subMonths(currentMonth, 1));
   const handleNextMonth = () => onMonthChange(addMonths(currentMonth, 1));
   const handleToday = () => onMonthChange(new Date());
+
+  const weekHasItems = (weekDays: Date[], dayLanes: number[]) =>
+    dayLanes.some((n) => n > 0) || weekDays.some((d) => (casesByDate.get(format(d, "yyyy-MM-dd")) || []).length > 0);
 
   const handleDayNumberClick = (day: Date, dateKey: string) => {
     setDetailDay({ date: day, dateKey });
@@ -275,18 +289,19 @@ export function CalendarView({
           ))}
         </div>
 
-        {weeks.map(({ days: weekDays, segments, lanes }) => (
+        {weeks.map(({ days: weekDays, segments, lanes, dayLanes }) => (
           <div
             key={format(weekDays[0], "yyyy-MM-dd")}
-            className="relative xl:min-h-[46px] xl:overflow-hidden"
-            // 寬螢幕填滿視窗時，案件多的週分到較高的列，沒案件的週（例 上月的日子）縮小
-            style={{ flex: `${2 + lanes + Math.max(0, ...weekDays.map((d) => {
+            className={cn("relative xl:overflow-hidden", weekHasItems(weekDays, dayLanes) ? "xl:min-h-[76px]" : "xl:min-h-[46px]")}
+            // 寬螢幕填滿視窗時，案件多的週分到較高的列，沒案件的週（例 上月的日子）縮小；
+            // 至少留一件案件的高度，避免案件少的週被擠到只剩日期
+            style={{ flex: `${4 + Math.max(0, ...weekDays.map((d, j) => {
               const list = casesByDate.get(format(d, "yyyy-MM-dd")) || [];
-              return list.length + new Set(list.map((c) => c.surveyor)).size * 0.6;
+              return dayLanes[j] + list.length + new Set(list.map((c) => c.surveyor)).size * 0.6;
             }))} 1 0` }}
           >
             <div className={cn("grid gap-px xl:h-full xl:grid-rows-[minmax(0,1fr)]", hideWeekends ? "grid-cols-5" : "grid-cols-7")}>
-              {weekDays.map((day) => {
+              {weekDays.map((day, j) => {
           const dateKey = format(day, "yyyy-MM-dd");
           const dayCases = casesByDate.get(dateKey) || [];
           const isCurrentMonth = isSameMonth(day, currentMonth);
@@ -307,7 +322,7 @@ export function CalendarView({
                 <span className="text-sm text-muted-foreground/50 w-7 h-7 flex items-center justify-center">
                   {format(day, "d")}
                 </span>
-                {lanes > 0 && <div style={{ height: lanes * (BAR_H + BAR_GAP) }} />}
+                {dayLanes[j] > 0 && <div style={{ height: dayLanes[j] * (BAR_H + BAR_GAP) }} />}
               </div>
             );
           }
@@ -367,7 +382,7 @@ export function CalendarView({
               </div>
 
               {/* 預留請假橫條的位置（橫條畫在整週的上層） */}
-              {lanes > 0 && <div style={{ height: lanes * (BAR_H + BAR_GAP) }} />}
+              {dayLanes[j] > 0 && <div style={{ height: dayLanes[j] * (BAR_H + BAR_GAP) }} />}
 
               {/* Cases grouped by surveyor */}
               <div className="space-y-1 overflow-hidden max-h-[90px] xl:max-h-none xl:flex-1 xl:min-h-0 xl:overflow-y-auto thin-scroll">
@@ -422,12 +437,14 @@ export function CalendarView({
                 {segments.map((seg) => {
                   const l = seg.leave;
                   const type = l.leaveType || "休假";
+                  const names = seg.group.map((x) => x.surveyorName).join("、");
+                  const reasons = Array.from(new Set(seg.group.map((x) => x.reason).filter(Boolean))).join("、");
                   const sameDay = l.startDatetime.slice(0, 10) === l.endDatetime.slice(0, 10);
                   return (
                     <button
                       key={l.id}
                       type="button"
-                      onClick={() => showLeave(l)}
+                      onClick={() => (seg.group.length > 1 ? handleDayNumberClick(weekDays[seg.start], format(weekDays[seg.start], "yyyy-MM-dd")) : showLeave(l))}
                       className={cn(
                         "pointer-events-auto text-xs px-1.5 flex items-center gap-1 overflow-hidden whitespace-nowrap text-left",
                         leaveBarClass(type),
@@ -435,15 +452,15 @@ export function CalendarView({
                         seg.isEnd ? "mr-1 rounded-r" : "border-r-0",
                       )}
                       style={{ gridColumn: `${seg.start + 1} / ${seg.end + 2}`, gridRow: seg.lane + 1 }}
-                      title={`${type}：${l.surveyorName} ${leavePeriod(l)}${l.reason ? `（${l.reason}）` : ""}`}
+                      title={`${type}：${names} ${leavePeriod(l)}${reasons ? `（${reasons}）` : ""}${seg.group.length > 1 ? "，點一下看當天明細" : ""}`}
                       data-testid={`leave-bar-${l.id}`}
                     >
                       {!seg.isStart && <span aria-hidden>‹</span>}
                       <span className="font-semibold">{type}</span>
                       <span className="truncate">
-                        {l.surveyorName}
+                        {names}
                         {sameDay && (l.startDatetime.slice(11) !== "08:00" || l.endDatetime.slice(11) !== "17:00") ? ` ${leavePeriod(l)}` : ""}
-                        {l.reason ? `・${l.reason}` : ""}
+                        {reasons ? `・${reasons}` : ""}
                       </span>
                       {!seg.isEnd && <span aria-hidden className="ml-auto">›</span>}
                     </button>
