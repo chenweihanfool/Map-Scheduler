@@ -228,7 +228,7 @@ export function CalendarView({
   const weekdayLabels = hideWeekends ? WEEKDAYS_WORK : WEEKDAYS_ALL;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 xl:space-y-2 xl:flex-1 xl:min-h-0 xl:flex xl:flex-col">
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2">
@@ -263,12 +263,12 @@ export function CalendarView({
       </div>
 
       {/* Calendar Grid：每週一列，請假橫條疊在該週上層 */}
-      <div className="flex flex-col gap-px bg-border rounded-lg overflow-hidden">
+      <div className="flex flex-col gap-px bg-border rounded-lg overflow-hidden xl:flex-1 xl:min-h-0">
         <div className={cn("grid gap-px", hideWeekends ? "grid-cols-5" : "grid-cols-7")}>
           {weekdayLabels.map((day) => (
             <div
               key={day}
-              className="bg-muted py-2 text-center text-sm font-medium"
+              className="bg-muted py-2 xl:py-1 text-center text-sm font-medium"
             >
               {day}
             </div>
@@ -276,8 +276,16 @@ export function CalendarView({
         </div>
 
         {weeks.map(({ days: weekDays, segments, lanes }) => (
-          <div key={format(weekDays[0], "yyyy-MM-dd")} className="relative">
-            <div className={cn("grid gap-px", hideWeekends ? "grid-cols-5" : "grid-cols-7")}>
+          <div
+            key={format(weekDays[0], "yyyy-MM-dd")}
+            className="relative xl:min-h-[46px] xl:overflow-hidden"
+            // 寬螢幕填滿視窗時，案件多的週分到較高的列，沒案件的週（例 上月的日子）縮小
+            style={{ flex: `${2 + lanes + Math.max(0, ...weekDays.map((d) => {
+              const list = casesByDate.get(format(d, "yyyy-MM-dd")) || [];
+              return list.length + new Set(list.map((c) => c.surveyor)).size * 0.6;
+            }))} 1 0` }}
+          >
+            <div className={cn("grid gap-px xl:h-full xl:grid-rows-[minmax(0,1fr)]", hideWeekends ? "grid-cols-5" : "grid-cols-7")}>
               {weekDays.map((day) => {
           const dateKey = format(day, "yyyy-MM-dd");
           const dayCases = casesByDate.get(dateKey) || [];
@@ -293,7 +301,7 @@ export function CalendarView({
             return (
               <div
                 key={dateKey}
-                className="bg-muted/30 min-h-[120px] 2xl:min-h-[150px] p-1"
+                className="bg-muted/30 min-h-[120px] 2xl:min-h-[150px] xl:min-h-0 p-1"
                 data-testid={`calendar-day-${dateKey}`}
               >
                 <span className="text-sm text-muted-foreground/50 w-7 h-7 flex items-center justify-center">
@@ -314,7 +322,7 @@ export function CalendarView({
             <div
               key={dateKey}
               className={cn(
-                "bg-background min-h-[120px] 2xl:min-h-[150px] p-1 relative group",
+                "bg-background min-h-[120px] 2xl:min-h-[150px] xl:min-h-0 p-1 relative group xl:flex xl:flex-col xl:overflow-hidden",
                 !wd.workday && isCurrentMonth && "bg-[repeating-linear-gradient(135deg,rgb(239_68_68/0.06)_0_6px,transparent_6px_12px)]",
                 !isCurrentMonth && "bg-muted/50",
                 dimPastCases && isPastDay && !isTodayDate && "bg-muted/30"
@@ -327,7 +335,7 @@ export function CalendarView({
                 </span>
               )}
               {/* Date number + Add button */}
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-1 xl:mb-0.5 shrink-0">
                 <button
                   className={cn(
                     "text-sm w-7 h-7 flex items-center justify-center rounded-full transition-colors",
@@ -362,7 +370,7 @@ export function CalendarView({
               {lanes > 0 && <div style={{ height: lanes * (BAR_H + BAR_GAP) }} />}
 
               {/* Cases grouped by surveyor */}
-              <div className="space-y-1 overflow-hidden max-h-[90px] xl:max-h-[140px] 2xl:max-h-[200px]">
+              <div className="space-y-1 overflow-hidden max-h-[90px] xl:max-h-none xl:flex-1 xl:min-h-0 xl:overflow-y-auto thin-scroll">
                 {Object.entries(groupedBySurveyor).map(([surveyor, surveyorCases]) => (
                   <div key={surveyor} className="space-y-0.5">
                     <div className="text-xs font-medium text-muted-foreground truncate">
@@ -448,7 +456,7 @@ export function CalendarView({
       </div>
 
       {/* Surveyor legend */}
-      <div className="flex flex-wrap items-center gap-4 pt-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-2 xl:pt-0 shrink-0">
         <span className="text-sm text-muted-foreground">測量員：</span>
         {surveyorsList.map((surveyor) => (
           <div key={surveyor.id} className="flex items-center gap-1">
