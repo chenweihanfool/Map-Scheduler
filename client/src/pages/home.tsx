@@ -22,10 +22,17 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.23.1";
+const APP_VERSION = "v2.23.2";
 const RELEASE_DATE = "2026-11-01";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.23.2",
+    date: "2026-11-01",
+    items: [
+      "月曆每週改回等高，格子大小一致；案件放不下時在格子內捲動",
+    ],
+  },
   {
     version: "v2.23.1",
     date: "2026-11-01",
