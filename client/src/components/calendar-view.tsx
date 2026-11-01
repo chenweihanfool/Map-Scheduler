@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { fmtDate, fmtDateTime, fmtMonth } from "@/lib/date-style";
 import { useQuery } from "@tanstack/react-query";
 import { 
   format, 
@@ -235,7 +236,7 @@ export function CalendarView({
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <h2 className="text-xl font-semibold min-w-[140px] text-center" data-testid="text-current-month">
-            {format(currentMonth, "yyyy年 M月", { locale: zhTW })}
+            {fmtMonth(currentMonth)}
           </h2>
           <Button variant="outline" size="icon" onClick={handleNextMonth} data-testid="button-next-month">
             <ChevronRight className="h-4 w-4" />
@@ -491,9 +492,9 @@ export function CalendarView({
                 <dt className="text-muted-foreground">測量員</dt>
                 <dd>{openLeave.surveyorName}</dd>
                 <dt className="text-muted-foreground">開始</dt>
-                <dd className="tabular-nums">{openLeave.startDatetime.replace(/-/g, "/")}</dd>
+                <dd className="tabular-nums">{fmtDateTime(openLeave.startDatetime)}</dd>
                 <dt className="text-muted-foreground">結束</dt>
-                <dd className="tabular-nums">{openLeave.endDatetime.replace(/-/g, "/")}</dd>
+                <dd className="tabular-nums">{fmtDateTime(openLeave.endDatetime)}</dd>
                 <dt className="text-muted-foreground">說明</dt>
                 <dd>{openLeave.reason || "—"}</dd>
               </dl>
@@ -515,7 +516,7 @@ export function CalendarView({
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center justify-between gap-2">
               <span>
-                {detailDay && format(detailDay.date, "yyyy年 M月 d日（EEEEE）", { locale: zhTW })}
+                {detailDay && fmtDate(detailDay.date, { long: true, weekday: true })}
               </span>
               <Badge variant="secondary" className="font-normal text-sm">
                 共 {detailCases.length} 件

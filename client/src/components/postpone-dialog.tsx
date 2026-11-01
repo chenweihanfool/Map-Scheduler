@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { DateInput } from "@/components/date-input";
+import { fmtDate } from "@/lib/date-style";
 import { useMutation } from "@tanstack/react-query";
 import { CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -55,7 +57,7 @@ export function PostponeDialog({ open, onOpenChange, caseData, onDone }: Postpon
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
       toast({
-        title: result.copy ? `已延期至 ${result.copy.surveyDate} ${result.copy.scheduledTime}` : "已標為延期",
+        title: result.copy ? `已延期至 ${fmtDate(result.copy.surveyDate)} ${result.copy.scheduledTime}` : "已標為延期",
         description: result.copy ? "原案件保留在原日期作紀錄，並已建立新案件" : "尚未排定延期日期，之後打開這件案件按「排定延期日期」即可",
       });
       onOpenChange(false);
@@ -75,7 +77,7 @@ export function PostponeDialog({ open, onOpenChange, caseData, onDone }: Postpon
             {pending ? "排定延期日期" : "延期"}
           </DialogTitle>
           <DialogDescription>
-            {caseLabel(caseData)}・{caseData.landParcel}・原排定 {caseData.surveyDate} {caseData.scheduledTime}
+            {caseLabel(caseData)}・{caseData.landParcel}・原排定 {fmtDate(caseData.surveyDate)} {caseData.scheduledTime}
           </DialogDescription>
         </DialogHeader>
 
@@ -106,7 +108,7 @@ export function PostponeDialog({ open, onOpenChange, caseData, onDone }: Postpon
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="postpone-date">延期日期（可先不填）</Label>
-              <Input id="postpone-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} data-testid="input-postpone-date" />
+              <DateInput id="postpone-date" value={date} onChange={setDate} data-testid="input-postpone-date" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="postpone-time">延期時間</Label>
@@ -176,7 +178,7 @@ export function ChangePostponeDateDialog({ open, onOpenChange, caseData }: Chang
     mutationFn: async () => apiRequest("PATCH", `/api/cases/${caseData!.id}`, { surveyDate: date, scheduledTime: time || caseData!.scheduledTime }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
-      toast({ title: `延期日期已改為 ${date} ${time}` });
+      toast({ title: `延期日期已改為 ${fmtDate(date)} ${time}` });
       onOpenChange(false);
     },
     onError: (error: Error) => toast({ title: "更改失敗", description: error.message, variant: "destructive" }),
@@ -187,12 +189,12 @@ export function ChangePostponeDateDialog({ open, onOpenChange, caseData }: Chang
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><CalendarClock className="h-5 w-5 text-amber-500" />更改延期日期</DialogTitle>
-          <DialogDescription>{caseLabel(caseData)}・{caseData.landParcel}・由 {caseData.postponedFromDate} {caseData.postponedFromTime} 延期</DialogDescription>
+          <DialogDescription>{caseLabel(caseData)}・{caseData.landParcel}・由 {fmtDate(caseData.postponedFromDate)} {caseData.postponedFromTime} 延期</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
             <Label htmlFor="pp-new-date">延期日期</Label>
-            <Input id="pp-new-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} data-testid="input-change-pp-date" />
+            <DateInput id="pp-new-date" value={date} onChange={setDate} data-testid="input-change-pp-date" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="pp-new-time">時間</Label>

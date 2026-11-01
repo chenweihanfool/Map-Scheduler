@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { fmtMonth } from "@/lib/date-style";
 import { useMutation } from "@tanstack/react-query";
 import { addMonths, eachDayOfInterval, endOfMonth, format, getDay, startOfMonth, subMonths } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -52,7 +53,7 @@ export function WorkdayEditor({ open, onOpenChange, month: initial }: WorkdayEdi
         </DialogHeader>
         <div className="flex items-center justify-between">
           <Button variant="outline" size="icon" onClick={() => setMonth(subMonths(month, 1))}><ChevronLeft className="h-4 w-4" /></Button>
-          <div className="font-semibold">{format(month, "yyyy年 M月")}</div>
+          <div className="font-semibold">{fmtMonth(month)}</div>
           <Button variant="outline" size="icon" onClick={() => setMonth(addMonths(month, 1))}><ChevronRight className="h-4 w-4" /></Button>
         </div>
         <div className="grid grid-cols-7 gap-1 text-center text-xs" data-testid="workday-grid">

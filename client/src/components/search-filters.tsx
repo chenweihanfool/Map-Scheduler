@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { fmtDate, fmtMonth } from "@/lib/date-style";
 import { CalendarIcon, Search, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -85,7 +86,7 @@ export function SearchFilters({
               data-testid="button-filter-date"
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
-              {dateFilter ? format(dateFilter, "yyyy/MM/dd") : "選擇日期"}
+              {dateFilter ? fmtDate(dateFilter) : "選擇日期"}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
@@ -93,6 +94,7 @@ export function SearchFilters({
               mode="single"
               selected={dateFilter}
               onSelect={onDateFilterChange}
+              formatters={{ formatCaption: (d) => fmtMonth(d) }}
               initialFocus
             />
           </PopoverContent>

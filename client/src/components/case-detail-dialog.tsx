@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { fmtDate } from "@/lib/date-style";
 import { zhTW } from "date-fns/locale";
 import { MapPin, Calendar, Clock, User, FileText, CheckCircle, XCircle, Loader2, Edit, CalendarClock, ArrowRight, ArrowLeft } from "lucide-react";
 import {
@@ -11,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { isPostponed, isPostponePending, subsOf, type SurveyCase } from "@shared/schema";
-import { caseLabel, formatRocDate, applicantText } from "@/lib/receive";
+import { caseLabel, applicantText } from "@/lib/receive";
 
 interface CaseDetailDialogProps {
   open: boolean;
@@ -63,7 +64,7 @@ export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit, onPostp
   };
 
   const formattedDate = caseData.surveyDate
-    ? format(new Date(caseData.surveyDate), "yyyy年MM月dd日 (EEEE)", { locale: zhTW })
+    ? fmtDate(caseData.surveyDate, { long: true, weekday: true })
     : "";
 
   return (
@@ -75,7 +76,7 @@ export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit, onPostp
               <DialogTitle className="text-xl">{caseLabel(caseData)}</DialogTitle>
               {(caseData.receiveDate || caseData.receiveWord) && (
                 <p className="text-sm text-muted-foreground mt-1" data-testid="text-receive-info">
-                  收件 {[formatRocDate(caseData.receiveDate, "long"), caseData.receiveWord].filter(Boolean).join("・")}
+                  收件 {[fmtDate(caseData.receiveDate, { long: true }), caseData.receiveWord].filter(Boolean).join("・")}
                 </p>
               )}
             </div>
@@ -129,7 +130,7 @@ export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit, onPostp
               {postponed && <div><span className="font-medium">延期理由：</span>{caseData.postponeReason || "（未填）"}</div>}
               {caseData.postponedToId && (
                 <button type="button" className="flex items-center gap-1 text-amber-700 dark:text-amber-400 hover:underline" onClick={() => onOpenCase?.(caseData.postponedToId!)}>
-                  已延期至 {caseData.postponedToDate} {caseData.postponedToTime}<ArrowRight className="h-3.5 w-3.5" />
+                  已延期至 {fmtDate(caseData.postponedToDate)} {caseData.postponedToTime}<ArrowRight className="h-3.5 w-3.5" />
                 </button>
               )}
               {pending && (
@@ -142,7 +143,7 @@ export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit, onPostp
               )}
               {caseData.postponedFromId && (
                 <button type="button" className="flex items-center gap-1 text-amber-700 dark:text-amber-400 hover:underline" onClick={() => onOpenCase?.(caseData.postponedFromId!)}>
-                  <ArrowLeft className="h-3.5 w-3.5" />由 {caseData.postponedFromDate} {caseData.postponedFromTime} 延期而來
+                  <ArrowLeft className="h-3.5 w-3.5" />由 {fmtDate(caseData.postponedFromDate)} {caseData.postponedFromTime} 延期而來
                 </button>
               )}
               {(caseData.postponedToId || (caseData.postponedFromId && !postponed)) && (

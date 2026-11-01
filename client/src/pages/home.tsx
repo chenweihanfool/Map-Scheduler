@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Map as MapIcon, Calendar as CalendarIcon, List, Settings, User, CalendarOff, Sparkles, FileBarChart } from "lucide-react";
 import { Link } from "wouter";
@@ -22,10 +22,19 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.21.0";
+const APP_VERSION = "v2.22.0";
 const RELEASE_DATE = "2026-10-30";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.22.0",
+    date: "2026-11-01",
+    items: [
+      "日期可選民國或西元（系統設定 → 日期格式，預設民國，只套用在各自的瀏覽器）：全系統日期顯示跟著切換；日期欄位可直接打 1151105、115/11/05 等，也可點小日曆選。資料與同步一律西元",
+      "新增案件快捷鍵 N",
+      "新增案件選定測量員後，自動推薦該測量員最近的空檔：避開休假、出差、上課與非工作日，以上午 09:00 為主，14 天後才考慮下午 14:00；手動改過日期時間就不覆蓋，可按「套用」",
+    ],
+  },
   {
     version: "v2.21.0",
     date: "2026-10-30",
@@ -356,6 +365,23 @@ export default function Home() {
     setIsFormOpen(true);
   };
 
+  // 快捷鍵 N：新增案件（正在打字或已有視窗開著時不作用）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "n" && e.key !== "N") return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      e.preventDefault();
+      setEditCase(null);
+      setSelectedDate(undefined);
+      setIsFormOpen(true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const handleDateClick = (date: Date) => {
     setEditCase(null);
     setSelectedDate(date);
@@ -423,9 +449,10 @@ export default function Home() {
               <CaseSearch onCaseSelect={handleCaseDetail} />
             </div>
             <div className="flex items-center gap-3 shrink-0">
-              <Button onClick={() => { setEditCase(null); setSelectedDate(undefined); setIsFormOpen(true); }} data-testid="button-add-case">
+              <Button onClick={() => { setEditCase(null); setSelectedDate(undefined); setIsFormOpen(true); }} data-testid="button-add-case" title="新增案件（快捷鍵 N）">
                 <Plus className="h-4 w-4 mr-2" />
                 <span className="hidden sm:inline">新增案件</span>
+                <kbd className="hidden lg:inline ml-2 rounded border border-white/40 px-1 text-[10px] font-mono leading-4 opacity-80">N</kbd>
               </Button>
               <Link href="/reports">
                 <Button variant="outline" data-testid="button-reports">

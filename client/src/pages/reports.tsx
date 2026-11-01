@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { DateInput } from "@/components/date-input";
+import { fmtDate } from "@/lib/date-style";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { ArrowLeft, FileBarChart, Printer } from "lucide-react";
@@ -222,18 +224,16 @@ export default function ReportsPage() {
             <div className="space-y-2">
               <Label>時間區間</Label>
               <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  type="date"
+                <DateInput
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={setStartDate}
                   className="w-44"
                   data-testid="input-report-start"
                 />
                 <span className="text-muted-foreground">至</span>
-                <Input
-                  type="date"
+                <DateInput
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={setEndDate}
                   className="w-44"
                   data-testid="input-report-end"
                 />
@@ -317,7 +317,7 @@ export default function ReportsPage() {
               統計期間：{startDate || "—"} 至 {endDate || "—"}
             </p>
             {filterSummary && <p className="text-sm text-neutral-600">篩選條件：{filterSummary}</p>}
-            <p className="text-xs text-neutral-500 mt-1">製表時間：{format(new Date(), "yyyy-MM-dd HH:mm")}</p>
+            <p className="text-xs text-neutral-500 mt-1">製表時間：{fmtDate(new Date())} {format(new Date(), "HH:mm")}</p>
           </div>
 
           {isLoading ? (
@@ -424,7 +424,7 @@ export default function ReportsPage() {
                         {reportCases.map((c, i) => (
                           <tr key={c.id}>
                             <td className="text-right">{i + 1}</td>
-                            <td className="whitespace-nowrap">{c.surveyDate}</td>
+                            <td className="whitespace-nowrap">{fmtDate(c.surveyDate)}</td>
                             <td>{c.scheduledTime}</td>
                             <td>{caseLabel(c)}</td>
                             <td>{c.caseType}</td>

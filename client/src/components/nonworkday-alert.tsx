@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { fmtDate } from "@/lib/date-style";
 import { CalendarX2 } from "lucide-react";
 import {
   AlertDialog,
@@ -35,7 +36,7 @@ export function useNonWorkdayGuard() {
             這天不是工作日
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {pending?.date}（週{dow}）是<b className="text-red-600 dark:text-red-400">{w?.label || "週末"}</b>，
+            {fmtDate(pending?.date)}（週{dow}）是<b className="text-red-600 dark:text-red-400">{w?.label || "週末"}</b>，
             尚未調整為工作日。確定仍要排在這天嗎？
             <br />
             如果當天要上班，可以先到月曆的「調整工作日」改成補班。
