@@ -22,10 +22,19 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.23.0";
+const APP_VERSION = "v2.23.1";
 const RELEASE_DATE = "2026-11-01";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.23.1",
+    date: "2026-11-01",
+    items: [
+      "修正有請假的月份月曆被擠壓：同類型、同時段的請假合成一條橫條（例 三人同一天上課），點一下看當天明細",
+      "只有被請假橫條蓋到的日子才預留橫條高度，其他日子的案件直接接在日期下面",
+      "每週高度分配更平均，有案件的週至少保留一件案件的高度",
+    ],
+  },
   {
     version: "v2.23.0",
     date: "2026-11-01",
