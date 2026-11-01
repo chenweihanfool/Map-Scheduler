@@ -212,9 +212,6 @@ export function CalendarView({
   const handleNextMonth = () => onMonthChange(addMonths(currentMonth, 1));
   const handleToday = () => onMonthChange(new Date());
 
-  const weekHasItems = (weekDays: Date[], dayLanes: number[]) =>
-    dayLanes.some((n) => n > 0) || weekDays.some((d) => (casesByDate.get(format(d, "yyyy-MM-dd")) || []).length > 0);
-
   const handleDayNumberClick = (day: Date, dateKey: string) => {
     setDetailDay({ date: day, dateKey });
   };
@@ -292,13 +289,8 @@ export function CalendarView({
         {weeks.map(({ days: weekDays, segments, lanes, dayLanes }) => (
           <div
             key={format(weekDays[0], "yyyy-MM-dd")}
-            className={cn("relative xl:overflow-hidden", weekHasItems(weekDays, dayLanes) ? "xl:min-h-[76px]" : "xl:min-h-[46px]")}
-            // 寬螢幕填滿視窗時，案件多的週分到較高的列，沒案件的週（例 上月的日子）縮小；
-            // 至少留一件案件的高度，避免案件少的週被擠到只剩日期
-            style={{ flex: `${4 + Math.max(0, ...weekDays.map((d, j) => {
-              const list = casesByDate.get(format(d, "yyyy-MM-dd")) || [];
-              return dayLanes[j] + list.length + new Set(list.map((c) => c.surveyor)).size * 0.6;
-            }))} 1 0` }}
+            // 寬螢幕填滿視窗時每週等高，案件放不下就在格子內捲動
+            className="relative xl:flex-1 xl:basis-0 xl:min-h-0 xl:overflow-hidden"
           >
             <div className={cn("grid gap-px xl:h-full xl:grid-rows-[minmax(0,1fr)]", hideWeekends ? "grid-cols-5" : "grid-cols-7")}>
               {weekDays.map((day, j) => {
