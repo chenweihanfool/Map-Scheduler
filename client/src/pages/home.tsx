@@ -22,10 +22,19 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.22.0";
-const RELEASE_DATE = "2026-10-30";
+const APP_VERSION = "v2.23.0";
+const RELEASE_DATE = "2026-11-01";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.23.0",
+    date: "2026-11-01",
+    items: [
+      "寬螢幕（1280px 以上）整頁剛好填滿視窗，不用上下捲動：月曆、列表、地圖自動撐滿，測量員側欄放不下時只捲動側欄",
+      "月曆依案件量分配每週高度，案件多的週較高、空的週較矮；單日案件太多時只在該格內捲動",
+      "標題列、測量員卡片、頁尾資料來源改得更精簡；手機與較窄螢幕維持原本的上下捲動",
+    ],
+  },
   {
     version: "v2.22.0",
     date: "2026-11-01",
@@ -427,7 +436,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background xl:h-screen xl:min-h-[720px] xl:flex xl:flex-col">
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-4 h-16">
@@ -477,9 +486,9 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="max-w-[1920px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 xl:py-3 xl:flex-1 xl:min-h-0 xl:flex xl:flex-col">
         {pendingPostpones.length > 0 && (
-          <div className="mb-4 rounded-lg border border-amber-400 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 px-4 py-2.5 text-sm flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="banner-postpone-pending">
+          <div className="mb-4 xl:mb-2 shrink-0 rounded-lg border border-amber-400 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 px-4 py-2.5 text-sm flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="banner-postpone-pending">
             <span className="font-medium text-amber-800 dark:text-amber-300">⚠ 有 {pendingPostpones.length} 件延期案件尚未排定延期日期：</span>
             {pendingPostpones.map((c) => (
               <button key={c.id} type="button" className="text-amber-700 dark:text-amber-400 underline-offset-2 hover:underline" onClick={() => handleCaseDetail(c)}>
@@ -489,11 +498,11 @@ export default function Home() {
           </div>
         )}
         {/* 寬螢幕（xl 以上）：左側排程、右側測量員側欄；較窄時測量員卡片排在下方 */}
-        <div className="xl:flex xl:items-start xl:gap-6">
-        <Card className="mb-6 xl:mb-0 xl:flex-1 xl:min-w-0">
-          <CardHeader className="pb-3">
+        <div className="xl:flex xl:gap-4 xl:flex-1 xl:min-h-0">
+        <Card className="mb-6 xl:mb-0 xl:flex-1 xl:min-w-0 xl:flex xl:flex-col xl:min-h-0">
+          <CardHeader className="pb-3 xl:px-4 xl:pt-3 xl:pb-2">
             <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div>
+              <div className="xl:flex xl:items-baseline xl:gap-3">
                 <CardTitle className="text-lg">測量排程</CardTitle>
                 <CardDescription>
                   共 {filteredCases.length} 筆案件{filteredCases.length !== cases.length && ` (已篩選，總共 ${cases.length} 筆)`}
@@ -517,8 +526,8 @@ export default function Home() {
               </Tabs>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="mb-4">
+          <CardContent className="xl:px-4 xl:pb-3 xl:flex-1 xl:min-h-0 xl:flex xl:flex-col">
+            <div className="mb-4 xl:mb-2 shrink-0">
               <CalendarFilters
                 surveyorFilter={surveyorFilter}
                 onSurveyorFilterChange={setSurveyorFilter}
@@ -546,26 +555,28 @@ export default function Home() {
               />
             )}
             {activeView === "list" && (
-              <CasesTable 
-                cases={filteredCases} 
-                isLoading={isLoading} 
-                onEdit={handleEdit}
-                dimPastCases={dimPastCases}
-              />
+              <div className="xl:flex-1 xl:min-h-0 xl:overflow-auto">
+                <CasesTable 
+                  cases={filteredCases} 
+                  isLoading={isLoading} 
+                  onEdit={handleEdit}
+                  dimPastCases={dimPastCases}
+                />
+              </div>
             )}
             {activeView === "map" && (
               <CaseMap
                 cases={filteredCases}
                 onCaseClick={handleCaseDetail}
                 selectedCaseId={selectedMapCaseId}
-                className="h-[600px] xl:h-[calc(100vh-17rem)] xl:min-h-[600px]"
+                className="h-[600px] xl:h-auto xl:flex-1 xl:min-h-0"
                 dimPastCases={dimPastCases}
               />
             )}
           </CardContent>
         </Card>
 
-        <aside className="xl:w-64 xl:shrink-0 xl:sticky xl:top-[5.5rem] xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
+        <aside className="xl:w-56 xl:shrink-0 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
         <h2 className="hidden xl:block text-sm font-medium text-muted-foreground mb-2">測量員</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-1 gap-4 xl:gap-2 mb-6">
           {surveyorsList.map((surveyor, index) => {
@@ -586,15 +597,15 @@ export default function Home() {
                 onClick={() => handleSurveyorCardClick(surveyor.name)}
                 data-testid={`card-surveyor-${surveyor.id}`}
               >
-                <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2 xl:p-3 xl:pb-1">
+                <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2 xl:px-3 xl:py-1.5">
                   <div className="min-w-0">
                     <CardTitle className="text-sm font-medium truncate">{surveyor.name}</CardTitle>
                     <p className="text-xs text-muted-foreground">{surveyor.businessAttribute}</p>
                   </div>
                   <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 </CardHeader>
-                <CardContent className="xl:px-3 xl:pb-2">
-                  <div className="flex items-center justify-end gap-2 min-h-5 flex-wrap">
+                <CardContent className="xl:px-3 xl:pb-1.5 xl:pt-0">
+                  <div className="flex items-center justify-end gap-2 min-h-5 xl:min-h-0 flex-wrap">
                     {isEligible && (
                       isPointsMode ? (
                         <div className="flex items-center gap-1">
@@ -624,9 +635,9 @@ export default function Home() {
         </aside>
         </div>
 
-        <div className="mt-6 text-center text-sm text-muted-foreground">
-          <p>座標資料來源：</p>
-          <p>國土測繪圖資服務雲 (NLSC) | 苗栗縣政府地理資訊系統</p>
+        <div className="mt-6 xl:mt-1.5 text-center text-sm xl:text-[11px] text-muted-foreground shrink-0">
+          <p className="xl:inline">座標資料來源：</p>
+          <p className="xl:inline">國土測繪圖資服務雲 (NLSC) | 苗栗縣政府地理資訊系統</p>
         </div>
       </main>
 
