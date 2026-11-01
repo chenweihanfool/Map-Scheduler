@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { fmtDate } from "@/lib/date-style";
 import { useLocation } from "wouter";
 import { ArrowLeft, CalendarOff, Plus, Pencil, Trash2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -47,9 +48,9 @@ function formatDateRange(start: string, end: string): string {
     const s = parseISO(startDate);
     const e = parseISO(endDate);
     if (startDate === endDate) {
-      return `${format(s, "yyyy/M/d", { locale: zhTW })} ${startTime} ~ ${endTime}`;
+      return `${fmtDate(s)} ${startTime} ~ ${endTime}`;
     }
-    return `${format(s, "yyyy/M/d", { locale: zhTW })} ${startTime} ~ ${format(e, "yyyy/M/d", { locale: zhTW })} ${endTime}`;
+    return `${fmtDate(s)} ${startTime} ~ ${fmtDate(e)} ${endTime}`;
   } catch {
     return `${start} ~ ${end}`;
   }

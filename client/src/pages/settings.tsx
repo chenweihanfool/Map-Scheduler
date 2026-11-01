@@ -8,6 +8,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AgentsCard } from "@/components/agents-card";
+import { DateStyleCard } from "@/components/date-style-card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { CASE_TYPES, DEFAULT_CASE_TYPES, type SystemSettings, type CaseTypeRecord } from "@shared/schema";
@@ -178,6 +179,8 @@ export default function SettingsPage() {
 
       <main className="container mx-auto px-4 py-6">
         <div className="max-w-2xl mx-auto space-y-6">
+          <DateStyleCard />
+
           <Card>
             <CardHeader>
               <CardTitle>排件模式</CardTitle>

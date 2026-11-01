@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { DateInput } from "@/components/date-input";
+import { fmtDate } from "@/lib/date-style";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -247,11 +249,9 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
         <div className="space-y-2">
           <Label>開始 *</Label>
           <div className="flex gap-2">
-            <Input
-              type="date"
+            <DateInput
               value={formData.startDate}
-              onChange={(e) => {
-                const v = e.target.value;
+              onChange={(v) => {
                 // 結束日期還沒填或早於開始日期時，跟著開始日期走
                 set({ startDate: v, ...(!formData.endDate || formData.endDate < v ? { endDate: v } : {}) });
               }}
@@ -271,10 +271,9 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
         <div className="space-y-2">
           <Label>結束 *</Label>
           <div className="flex gap-2">
-            <Input
-              type="date"
+            <DateInput
               value={formData.endDate}
-              onChange={(e) => set({ endDate: e.target.value })}
+              onChange={(v) => set({ endDate: v })}
               className="flex-1"
               data-testid="input-leave-end-date"
             />
@@ -347,7 +346,7 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
                   {conflicts.map((c) => (
                     <div key={c.id} className="text-xs p-2 bg-muted rounded border">
                       <span className="font-medium">{caseLabel(c)}</span>
-                      {" · "}{c.surveyDate} {c.scheduledTime}
+                      {" · "}{fmtDate(c.surveyDate)} {c.scheduledTime}
                       {" · "}{c.landParcel}
                     </div>
                   ))}

@@ -1,4 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { DateInput } from "@/components/date-input";
+import { fmtDate } from "@/lib/date-style";
+import { recommendSlot, type SlotRecommendation } from "@/lib/recommend-date";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -26,7 +29,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { caseLabel, completeReceiveWord, formatRocDate } from "@/lib/receive";
+import { caseLabel, completeReceiveWord } from "@/lib/receive";
 import { Textarea } from "@/components/ui/textarea";
 import { SectionCombobox } from "@/components/section-combobox";
 import { Calendar } from "@/components/ui/calendar";
@@ -205,6 +208,15 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
     enabled: open,
   });
 
+  const { data: allLeaves = [] } = useQuery<SurveyorLeave[]>({
+    queryKey: ["/api/leaves"],
+    enabled: open && !isEditing,
+  });
+
+  // 依測量員推薦日期：手動改過日期或時間後就不再自動覆蓋，只顯示推薦讓使用者自己套用
+  const scheduleTouched = useRef(false);
+  const [slotRec, setSlotRec] = useState<SlotRecommendation | null>(null);
+
   const { data: dynamicCaseTypes = [] } = useQuery<CaseTypeRecord[]>({
     queryKey: ["/api/case-types"],
     enabled: open,
@@ -284,6 +296,17 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
   const watchedScheduledTime = form.watch("scheduledTime");
   const watchedSection = form.watch("section");
   const watchedLotNumber = form.watch("lotNumber");
+
+  useEffect(() => {
+    if (!open || isEditing || !watchedSurveyor) { setSlotRec(null); return; }
+    const rec = recommendSlot({ surveyor: watchedSurveyor, cases: allCases, leaves: allLeaves, isWorkday: (d) => dayInfo(d).workday });
+    setSlotRec(rec);
+    if (rec && !defaultDate && !scheduleTouched.current) {
+      form.setValue("surveyDate", rec.date);
+      form.setValue("scheduledTime", rec.time);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isEditing, watchedSurveyor, allCases, allLeaves, dayInfo, defaultDate]);
 
   const caseTypeOptions = dynamicCaseTypes.length > 0 
     ? dynamicCaseTypes.map(t => t.name) 
@@ -365,6 +388,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
   useEffect(() => {
     if (open) {
       setIsInitialLoad(true);
+      scheduleTouched.current = false;
       const defaultSurveyor = isEditing 
         ? (editCase?.surveyor ?? "") 
         : "";
@@ -615,12 +639,12 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
             {isPostponed(editCase) && <span><b>{isPostponePending(editCase) ? "延期・未排日期" : "延期"}</b>　理由：{editCase.postponeReason || "（未填）"}</span>}
             {editCase.postponedToId && (
               <button type="button" className="text-amber-700 dark:text-amber-400 hover:underline" onClick={() => { onOpenChange(false); onOpenCase?.(editCase.postponedToId!); }}>
-                已延期至 {editCase.postponedToDate} {editCase.postponedToTime} →
+                已延期至 {fmtDate(editCase.postponedToDate)} {editCase.postponedToTime} →
               </button>
             )}
             {editCase.postponedFromId && (
               <button type="button" className="text-amber-700 dark:text-amber-400 hover:underline" onClick={() => { onOpenChange(false); onOpenCase?.(editCase.postponedFromId!); }}>
-                ← 由 {editCase.postponedFromDate} {editCase.postponedFromTime} 延期而來
+                ← 由 {fmtDate(editCase.postponedFromDate)} {editCase.postponedFromTime} 延期而來
               </button>
             )}
           </div>
@@ -644,10 +668,10 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
                   <FormItem>
                     <FormLabel>收件日期</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} data-testid="input-receive-date" />
+                      <DateInput value={field.value ?? ""} onChange={field.onChange} data-testid="input-receive-date" />
                     </FormControl>
                     {field.value && (
-                      <p className="text-xs text-muted-foreground">{formatRocDate(field.value, "long")}</p>
+                      <p className="text-xs text-muted-foreground">{fmtDate(field.value, { long: true, weekday: true })}</p>
                     )}
                     <FormMessage />
                   </FormItem>
@@ -1023,35 +1047,30 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>日期 <span className="text-destructive">*</span></FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
+                    <FormControl>
+                      <DateInput value={field.value} onChange={(v) => { scheduleTouched.current = true; field.onChange(v); }} data-testid="input-survey-date" />
+                    </FormControl>
+                    {field.value && <p className="text-xs text-muted-foreground">{fmtDate(field.value, { long: true, weekday: true })}</p>}
+                    {slotRec && (
+                      <div className="text-xs leading-6" data-testid="slot-recommendation">
+                        <Sparkles className="inline h-3 w-3 mr-1 -mt-0.5 text-primary" />
+                        <span className="text-muted-foreground">
+                          {watchedSurveyor} 最近空檔：<b className="text-foreground whitespace-nowrap">{fmtDate(slotRec.date, { weekday: true })} {slotRec.afternoon ? "下午" : "上午"} {slotRec.time}</b>
+                        </span>
+                        {(field.value !== slotRec.date || watchedScheduledTime !== slotRec.time) && (
                           <Button
+                            type="button"
                             variant="outline"
-                            className={cn(
-                              "pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                            data-testid="button-date-picker"
+                            size="sm"
+                            className="h-6 px-2 ml-1.5 text-xs"
+                            onClick={() => { field.onChange(slotRec.date); form.setValue("scheduledTime", slotRec.time); }}
+                            data-testid="button-apply-recommendation"
                           >
-                            {field.value ? (
-                              format(new Date(field.value), "yyyy/MM/dd")
-                            ) : (
-                              <span>選擇日期</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            套用
                           </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-[1100]" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value ? new Date(field.value) : undefined}
-                          onSelect={(date) => field.onChange(date ? format(date, "yyyy-MM-dd") : "")}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                        )}
+                      </div>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1069,6 +1088,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
                       type="time"
                       placeholder="例: 09:00" 
                       {...field}
+                      onChange={(e) => { scheduleTouched.current = true; field.onChange(e); }}
                       data-testid="input-time"
                     />
                   </FormControl>

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { fmtDate } from "@/lib/date-style";
 import { useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { zhTW } from "date-fns/locale";
@@ -293,7 +294,7 @@ export function CasesTable({ cases, isLoading, onEdit, dimPastCases }: CasesTabl
                   {surveyCase.surveyor}
                 </TableCell>
                 <TableCell data-testid={`text-date-${surveyCase.id}`}>
-                  {surveyCase.surveyDate ? format(new Date(surveyCase.surveyDate), "yyyy/MM/dd", { locale: zhTW }) : "-"}
+                  {surveyCase.surveyDate ? fmtDate(surveyCase.surveyDate) : "-"}
                 </TableCell>
                 <TableCell data-testid={`text-time-${surveyCase.id}`}>
                   {surveyCase.scheduledTime}

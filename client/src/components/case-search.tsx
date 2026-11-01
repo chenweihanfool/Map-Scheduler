@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { fmtDate } from "@/lib/date-style";
 import { useQuery } from "@tanstack/react-query";
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -142,7 +143,7 @@ export function CaseSearch({ onCaseSelect }: CaseSearchProps) {
                         {applicantText(caseItem) && ` | ${applicantText(caseItem)}`}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {caseItem.surveyor} | {caseItem.surveyDate} {caseItem.scheduledTime}
+                        {caseItem.surveyor} | {fmtDate(caseItem.surveyDate)} {caseItem.scheduledTime}
                       </div>
                     </div>
                   </CommandItem>

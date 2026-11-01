@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { fmtDate } from "@/lib/date-style";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -156,7 +157,7 @@ export function CaseMap({ cases, onCaseClick, selectedCaseId, className, dimPast
                     <span className="text-xs text-muted-foreground">{caseItem.surveyor}</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {caseItem.surveyDate} {caseItem.scheduledTime}
+                    {fmtDate(caseItem.surveyDate)} {caseItem.scheduledTime}
                   </p>
                   {onCaseClick && (
                     <Button

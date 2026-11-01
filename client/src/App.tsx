@@ -1,4 +1,5 @@
 import { Switch, Route } from "wouter";
+import { useDateStyle } from "@/lib/date-style";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -25,12 +26,13 @@ function Router() {
 }
 
 function App() {
+  const [dateStyle] = useDateStyle();   // 切換民國／西元時重新繪製所有畫面
   return (
     <ThemeProvider defaultTheme="light" storageKey="survey-ui-theme">
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <Router key={dateStyle} />
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
