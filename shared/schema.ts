@@ -227,12 +227,14 @@ export const surveyorLeaves = pgTable("surveyor_leaves", {
   startDatetime: text("start_datetime").notNull(), // 請假開始時間 (YYYY-MM-DD HH:MM format)
   endDatetime: text("end_datetime").notNull(),     // 請假結束時間 (YYYY-MM-DD HH:MM format)
   reason: text("reason"), // 請假原因
+  externalId: text("external_id"), // HERMES 等外部系統的編號，例 V-412
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const insertSurveyorLeaveSchema = createInsertSchema(surveyorLeaves).omit({
   id: true,
   createdAt: true,
+  externalId: true,
 });
 
 export type InsertSurveyorLeave = z.infer<typeof insertSurveyorLeaveSchema>;

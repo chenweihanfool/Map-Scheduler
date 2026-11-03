@@ -1,9 +1,10 @@
+import crypto from "crypto";
 import { z } from "zod";
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { 
-  insertSurveyCaseSchema, 
+import {
+  insertSurveyCaseSchema,
   updateSurveyCaseSchema,
   insertSurveyorSchema,
   updateSurveyorSchema,
@@ -11,6 +12,7 @@ import {
   insertSurveyorLeaveSchema,
   insertCaseTypeSchema,
   CASE_TYPES,
+  LEAVE_TYPES,
   type CoordinateStatus,
   type SurveyCase,
   insertAgentSchema,
@@ -641,6 +643,103 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting leave:", error);
+      res.status(500).json({ error: "Failed to delete leave" });
+    }
+  });
+
+  // ===== Public Leave API（HERMES，需 x-leave-api-key）=====
+
+  const leaveApiKeyMiddleware = (req: Request, res: Response, next: NextFunction) => {
+    const configured = process.env.LEAVE_API_KEY;
+    if (!configured) {
+      return res.status(503).json({ error: "LEAVE_API_KEY not configured" });
+    }
+    const provided = req.header("x-leave-api-key");
+    if (!provided) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const providedBuf = Buffer.from(provided);
+    const configuredBuf = Buffer.from(configured);
+    if (providedBuf.length !== configuredBuf.length || !crypto.timingSafeEqual(providedBuf, configuredBuf)) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    next();
+  };
+
+  const publicLeaveExternalIdPattern = /^[A-Za-z0-9_-]{1,64}$/;
+
+  const publicLeavePutSchema = z.object({
+    startDatetime: z.string().regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/),
+    endDatetime: z.string().regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/),
+    leaveType: z.enum(LEAVE_TYPES).optional(),
+    reason: z.string().nullable().optional(),
+  });
+
+  // 新增或更新本人的請假（依外部編號 upsert）；衝突不擋寫入，一併回傳衝突清單
+  app.put("/api/public/leaves/:externalId", leaveApiKeyMiddleware, async (req, res) => {
+    try {
+      const externalId = req.params.externalId;
+      if (!publicLeaveExternalIdPattern.test(externalId)) {
+        return res.status(400).json({ error: "Invalid externalId" });
+      }
+
+      const parsed = publicLeavePutSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() });
+      }
+
+      const { startDatetime, endDatetime, leaveType = "休假", reason = null } = parsed.data;
+      if (startDatetime >= endDatetime) {
+        return res.status(400).json({ error: "開始時間必須早於結束時間" });
+      }
+
+      const surveyorName = (process.env.LEAVE_API_SURVEYOR_NAME ?? "").trim();
+      if (!surveyorName) {
+        return res.status(503).json({ error: "LEAVE_API_SURVEYOR_NAME not configured" });
+      }
+
+      const surveyorsList = await storage.getAllSurveyors();
+      const surveyor = surveyorsList.find(s => s.name === surveyorName);
+      if (!surveyor) {
+        return res.status(422).json({ error: `找不到測量員：${surveyorName}` });
+      }
+
+      const { leave, created } = await storage.upsertLeaveByExternalId(externalId, {
+        surveyorId: surveyor.id,
+        surveyorName: surveyor.name,
+        leaveType,
+        startDatetime,
+        endDatetime,
+        reason,
+      });
+
+      const conflicts = await findLeaveConflicts(surveyor.name, startDatetime, endDatetime);
+      res.status(created ? 201 : 200).json({
+        leave,
+        created,
+        conflicts: conflictResponse(conflicts).conflicts,
+      });
+    } catch (error) {
+      console.error("Error upserting public leave:", error);
+      res.status(500).json({ error: "Failed to upsert leave" });
+    }
+  });
+
+  // 依外部編號刪除本人的請假
+  app.delete("/api/public/leaves/:externalId", leaveApiKeyMiddleware, async (req, res) => {
+    try {
+      const externalId = req.params.externalId;
+      if (!publicLeaveExternalIdPattern.test(externalId)) {
+        return res.status(400).json({ error: "Invalid externalId" });
+      }
+
+      const deleted = await storage.deleteLeaveByExternalId(externalId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Leave not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting public leave:", error);
       res.status(500).json({ error: "Failed to delete leave" });
     }
   });
