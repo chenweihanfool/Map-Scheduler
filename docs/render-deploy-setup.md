@@ -34,7 +34,12 @@ Render 只是負責跑這個 Node.js 網頁服務。
 ```
 DATABASE_URL = postgresql://PostgreSQL_toufen:<密碼>@toufen.postgres.database.azure.com:5432/postgres?sslmode=require&options=-csearch_path%3Dmapscheduler
 NODE_ENV = production
+LEAVE_API_KEY = <LEAVE_API_KEY>
+LEAVE_API_SURVEYOR_NAME = <測量員姓名>
 ```
+
+`LEAVE_API_KEY` 與 `LEAVE_API_SURVEYOR_NAME` 是給 HERMES 請假 API 用的（詳見
+[docs/hermes-leave-api.md](./hermes-leave-api.md)）：前者是驗證用的金鑰，後者是指定寫入哪一位測量員的請假，值要與系統「測量員管理」裡的姓名完全一致。
 
 ## 3. 確認 Azure PostgreSQL 防火牆放行 Render
 

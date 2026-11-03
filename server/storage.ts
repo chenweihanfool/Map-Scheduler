@@ -18,6 +18,16 @@ import {
 import { db } from "./db";
 import { eq, desc, asc, and, gte, lte, or, ilike, sql } from "drizzle-orm";
 
+// HERMES 請假 API upsert 時會寫入的欄位（externalId 由方法參數決定，不在此列）
+export type LeaveUpsertData = {
+  surveyorId: string;
+  surveyorName: string;
+  leaveType: string;
+  startDatetime: string;
+  endDatetime: string;
+  reason: string | null;
+};
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -52,6 +62,9 @@ export interface IStorage {
   createLeave(data: InsertSurveyorLeave): Promise<SurveyorLeave>;
   updateLeave(id: string, data: Partial<InsertSurveyorLeave>): Promise<SurveyorLeave | undefined>;
   deleteLeave(id: string): Promise<boolean>;
+  getLeaveByExternalId(externalId: string): Promise<SurveyorLeave | undefined>;
+  upsertLeaveByExternalId(externalId: string, data: LeaveUpsertData): Promise<{ leave: SurveyorLeave; created: boolean }>;
+  deleteLeaveByExternalId(externalId: string): Promise<boolean>;
 
   getAllCaseTypes(): Promise<CaseTypeRecord[]>;
   createCaseType(data: InsertCaseType): Promise<CaseTypeRecord>;
@@ -371,6 +384,36 @@ export class DatabaseStorage implements IStorage {
 
   async deleteLeave(id: string): Promise<boolean> {
     const result = await db.delete(surveyorLeaves).where(eq(surveyorLeaves.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getLeaveByExternalId(externalId: string): Promise<SurveyorLeave | undefined> {
+    const [leave] = await db.select().from(surveyorLeaves).where(eq(surveyorLeaves.externalId, externalId));
+    return leave || undefined;
+  }
+
+  async upsertLeaveByExternalId(externalId: string, data: LeaveUpsertData): Promise<{ leave: SurveyorLeave; created: boolean }> {
+    const existing = await this.getLeaveByExternalId(externalId);
+    if (existing) {
+      const [leave] = await db.update(surveyorLeaves)
+        .set({
+          surveyorId: data.surveyorId,
+          surveyorName: data.surveyorName,
+          leaveType: data.leaveType,
+          startDatetime: data.startDatetime,
+          endDatetime: data.endDatetime,
+          reason: data.reason,
+        })
+        .where(eq(surveyorLeaves.externalId, externalId))
+        .returning();
+      return { leave, created: false };
+    }
+    const [leave] = await db.insert(surveyorLeaves).values({ ...data, externalId }).returning();
+    return { leave, created: true };
+  }
+
+  async deleteLeaveByExternalId(externalId: string): Promise<boolean> {
+    const result = await db.delete(surveyorLeaves).where(eq(surveyorLeaves.externalId, externalId)).returning();
     return result.length > 0;
   }
 

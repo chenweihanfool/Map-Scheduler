@@ -164,3 +164,14 @@ export async function upgradeWorkdayOverrides(): Promise<void> {
     console.error("工作日調整資料表建立失敗：", error);
   }
 }
+
+// v2.24.0 HERMES 請假 API：外部編號欄位與唯一索引（欄位不存在才新增，重複執行沒有影響）
+export async function upgradeLeaveExternalId(): Promise<void> {
+  try {
+    await pool.query("ALTER TABLE mapscheduler.surveyor_leaves ADD COLUMN IF NOT EXISTS external_id text");
+    await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS surveyor_leaves_external_id_key ON mapscheduler.surveyor_leaves (external_id) WHERE external_id IS NOT NULL");
+    console.log("[schema] 請假外部編號欄位與唯一索引已檢查");
+  } catch (error) {
+    console.error("請假外部編號欄位升級失敗：", error);
+  }
+}

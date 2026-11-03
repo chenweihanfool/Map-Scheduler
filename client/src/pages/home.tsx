@@ -22,10 +22,17 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.23.2";
-const RELEASE_DATE = "2026-11-01";
+const APP_VERSION = "v2.24.0";
+const RELEASE_DATE = "2026-11-03";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.24.0",
+    date: "2026-11-03",
+    items: [
+      "新增 HERMES 請假 API：個人助理可以直接把請假寫進排程，用外部編號更新或刪除，不會重複",
+    ],
+  },
   {
     version: "v2.23.2",
     date: "2026-11-01",
