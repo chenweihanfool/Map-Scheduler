@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Map as MapIcon, Calendar as CalendarIcon, List, Settings, User, CalendarOff, Sparkles, FileBarChart } from "lucide-react";
+import { Plus, Map as MapIcon, Calendar as CalendarIcon, List, Settings, User, CalendarOff, Sparkles, FileBarChart, LayoutGrid } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CaseFormDialog } from "@/components/case-form-dialog";
+import { ScheduleBoard } from "@/components/schedule-board";
 import { CasesTable } from "@/components/cases-table";
 import { CalendarView } from "@/components/calendar-view";
 import { CalendarFilters } from "@/components/calendar-filters";
@@ -22,10 +23,20 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.24.0";
-const RELEASE_DATE = "2026-11-03";
+const APP_VERSION = "v2.25.0";
+const RELEASE_DATE = "2026-11-05";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.25.0",
+    date: "2026-11-05",
+    items: [
+      "新增「排班表」分頁：每位測量員一列、每個工作日一欄，每格分上午／下午，休假、出差、上課整段畫上斜紋，一眼看出誰哪天哪個時段有空",
+      "排班表一次看一週或兩週（會記住），可往前往後翻週；表頭標示國定假日與今天，最下面有每日上午／下午件數",
+      "滑到空的時段按「空檔」直接新增案件，自動帶入測量員、日期與上午 09:00／下午 14:00",
+      "首頁會記住上次看的分頁（月曆、排班表、列表、地圖）",
+    ],
+  },
   {
     version: "v2.24.0",
     date: "2026-11-03",
@@ -322,7 +333,13 @@ export default function Home() {
   const [editCase, setEditCase] = useState<SurveyCase | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [activeView, setActiveView] = useState<"calendar" | "list" | "map">("calendar");
+  type View = "calendar" | "board" | "list" | "map";
+  // 記住上次看的分頁（月曆、排班表、列表、地圖）
+  const [activeView, setActiveViewState] = useState<View>(() => {
+    try { const v = localStorage.getItem("ms-home-view"); return v === "board" || v === "list" || v === "map" ? v : "calendar"; } catch { return "calendar"; }
+  });
+  const setActiveView = (v: View) => { setActiveViewState(v); try { localStorage.setItem("ms-home-view", v); } catch { /* 只影響這次 */ } };
+  const [slotDefaults, setSlotDefaults] = useState<{ surveyor: string; time: string } | null>(null);
   
   const [surveyorFilter, setSurveyorFilter] = useState("");
   const [caseTypeFilter, setCaseTypeFilter] = useState("");
@@ -423,6 +440,7 @@ export default function Home() {
   const handleCloseForm = (open: boolean) => {
     setIsFormOpen(open);
     if (!open) {
+      setSlotDefaults(null);
       setEditCase(null);
       setSelectedDate(undefined);
     }
@@ -531,11 +549,15 @@ export default function Home() {
                   共 {filteredCases.length} 筆案件{filteredCases.length !== cases.length && ` (已篩選，總共 ${cases.length} 筆)`}
                 </CardDescription>
               </div>
-              <Tabs value={activeView} onValueChange={(v) => setActiveView(v as "calendar" | "list" | "map")}>
+              <Tabs value={activeView} onValueChange={(v) => setActiveView(v as View)}>
                 <TabsList>
                   <TabsTrigger value="calendar" data-testid="tab-calendar">
                     <CalendarIcon className="h-4 w-4 mr-2" />
                     月曆
+                  </TabsTrigger>
+                  <TabsTrigger value="board" data-testid="tab-board">
+                    <LayoutGrid className="h-4 w-4 mr-2" />
+                    排班表
                   </TabsTrigger>
                   <TabsTrigger value="list" data-testid="tab-list">
                     <List className="h-4 w-4 mr-2" />
@@ -575,6 +597,20 @@ export default function Home() {
                 caseTypeFilter={caseTypeFilter}
                 showVacantOnly={showVacantOnly}
                 dimPastCases={dimPastCases}
+              />
+            )}
+            {activeView === "board" && (
+              <ScheduleBoard
+                cases={filteredCases}
+                surveyorFilter={surveyorFilter}
+                dimPastCases={dimPastCases}
+                onCaseClick={handleEdit}
+                onAdd={(date, surveyor, time) => {
+                  setEditCase(null);
+                  setSelectedDate(date);
+                  setSlotDefaults({ surveyor, time });
+                  setIsFormOpen(true);
+                }}
               />
             )}
             {activeView === "list" && (
@@ -669,6 +705,8 @@ export default function Home() {
         onOpenChange={handleCloseForm}
         editCase={editCase}
         defaultDate={selectedDate}
+        defaultSurveyor={slotDefaults?.surveyor}
+        defaultTime={slotDefaults?.time}
         onPostpone={(c) => setPostponeCase(c)}
         onOpenCase={openCaseById}
         onChangePostponeDate={(c) => setChangeDateCase(c)}
