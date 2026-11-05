@@ -125,8 +125,9 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
 
       <div className="rounded-lg border overflow-auto xl:flex-1 xl:min-h-0 thin-scroll">
         <div
-          className="grid min-w-[900px] h-full bg-border gap-px"
-          style={{ gridTemplateColumns: gridCols, gridTemplateRows: `auto repeat(${rows.length}, minmax(76px, 1fr)) auto` }}
+          className="grid min-w-[900px] min-h-full bg-border gap-px"
+          // 每列依內容自動長高，完整顯示每格內容；表格放不下時在表格內捲動
+          style={{ gridTemplateColumns: gridCols, gridTemplateRows: `auto repeat(${rows.length * 2}, minmax(38px, auto)) auto` }}
         >
           {/* 表頭：日期 */}
           <div className="bg-muted sticky left-0 z-20 px-2 py-1.5 text-xs text-muted-foreground flex items-end">測量員</div>
@@ -151,76 +152,77 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
             );
           })}
 
-          {/* 每位測量員一列 */}
-          {rows.map(({ s, i }) => {
+          {/* 每位測量員兩列（上午、下午），同一排的上午／下午線對齊；列高依內容自動長高 */}
+          {rows.map(({ s, i }, ri) => {
             const color = surveyorColorStyle(s, i);
+            const rowBase = 2 + ri * 2;   // 第 1 列是表頭
             return [
-              <div key={`h-${s.id}`} className={cn("sticky left-0 z-10 px-2 py-1.5 flex flex-col justify-center border-l-4", color.card, dimRow(s.name) && "opacity-40")} data-testid={`board-row-${s.id}`}>
+              <div
+                key={`h-${s.id}`}
+                className={cn("sticky left-0 z-10 px-2 py-1.5 flex flex-col justify-center border-l-4", color.card, dimRow(s.name) && "opacity-40")}
+                style={{ gridColumn: 1, gridRow: `${rowBase} / span 2` }}
+                data-testid={`board-row-${s.id}`}
+              >
                 <div className="font-medium text-sm truncate">{s.name}</div>
                 <div className="text-[11px] text-muted-foreground truncate">{s.businessAttribute}・{rangeCount(s.name)} 件</div>
               </div>,
-              ...days.map((d, j) => {
+              ...days.flatMap((d, j) => {
                 const k = keys[j], w = dayInfo(k), past = k < today, weekBreak = j > 0 && d.getDay() < days[j - 1].getDay();
-                return (
-                  <div
-                    key={`${s.id}-${k}`}
-                    className={cn(
-                      "bg-background grid grid-rows-2 min-h-0",
-                      dimRow(s.name) && "[&>*]:opacity-30",
-                      !w.workday && "bg-[repeating-linear-gradient(135deg,rgb(239_68_68/0.06)_0_6px,transparent_6px_12px)]",
-                      isToday(d) && "bg-sky-50 dark:bg-sky-950/60",
-                      weekBreak && "border-l-4 border-l-border",
-                    )}
-                  >
-                    {HALVES.map((h) => {
-                      const list = slots.get(`${s.name}|${k}|${h.key}`) || [];
-                      const lv = leaveAt(s.name, k, h);
-                      const free = !list.some((c) => !isPostponed(c)) && !lv.length && w.workday;
-                      return (
+                return HALVES.map((h, hi) => {
+                  const list = slots.get(`${s.name}|${k}|${h.key}`) || [];
+                  const lv = leaveAt(s.name, k, h);
+                  const free = !list.some((c) => !isPostponed(c)) && !lv.length && w.workday;
+                  return (
+                    <div
+                      key={`${s.id}-${k}-${h.key}`}
+                      style={{ gridColumn: j + 2, gridRow: rowBase + hi }}
+                      className={cn(
+                        "relative group bg-background px-1 py-0.5 space-y-0.5",
+                        !w.workday && "bg-[repeating-linear-gradient(135deg,rgb(239_68_68/0.06)_0_6px,transparent_6px_12px)]",
+                        isToday(d) && "bg-sky-50 dark:bg-sky-950/60",
+                        weekBreak && "border-l-4 border-l-border",
+                        hi === 1 && "-mt-px border-t border-dashed border-border",   // 上下午之間用虛線，測量員之間是實線
+                        dimRow(s.name) && "[&>*]:opacity-30",
+                      )}
+                      data-testid={`board-${s.name}-${k}-${h.key}`}
+                    >
+                      {!list.length && !lv.length && <span className="absolute right-1 top-0.5 text-[10px] text-muted-foreground/50 pointer-events-none">{h.label}</span>}
+                      {lv.map((l) => (
                         <div
-                          key={h.key}
-                          className={cn("relative group min-h-0 overflow-y-auto thin-scroll px-1 py-0.5 space-y-0.5", h.key === "pm" && "border-t border-dashed")}
-                          data-testid={`board-${s.name}-${k}-${h.key}`}
+                          key={l.id}
+                          className={cn("text-[11px] px-1.5 rounded font-medium break-words", leaveBarClass(l.leaveType))}
+                          title={`${l.leaveType || "休假"}：${l.surveyorName} ${l.startDatetime} ~ ${l.endDatetime}${l.reason ? `（${l.reason}）` : ""}`}
                         >
-                          {!list.length && !lv.length && <span className="absolute right-1 top-0.5 text-[10px] text-muted-foreground/50 pointer-events-none">{h.label}</span>}
-                          {lv.map((l) => (
-                            <div
-                              key={l.id}
-                              className={cn("text-[11px] px-1.5 rounded truncate font-medium", leaveBarClass(l.leaveType))}
-                              title={`${l.leaveType || "休假"}：${l.surveyorName} ${l.startDatetime} ~ ${l.endDatetime}${l.reason ? `（${l.reason}）` : ""}`}
-                            >
-                              {l.leaveType || "休假"}{l.reason && l.reason !== (l.leaveType || "休假") ? `・${l.reason}` : ""}
-                            </div>
-                          ))}
-                          {list.map((c) => (
-                            <CaseChip key={c.id} surveyCase={c} colorClass={color.chip} dimmed={!!dimPastCases && past} onClick={() => onCaseClick(c)} />
-                          ))}
-                          {free && !past && (
-                            <button
-                              type="button"
-                              onClick={() => onAdd(d, s.name, h.time)}
-                              className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs text-muted-foreground"
-                              title={`新增 ${s.name} ${format(d, "M/d")} ${h.label} 的案件`}
-                              data-testid={`board-add-${s.name}-${k}-${h.key}`}
-                            >
-                              <Plus className="h-3.5 w-3.5 mr-0.5" />{h.label}空檔
-                            </button>
-                          )}
+                          {l.leaveType || "休假"}{l.reason && l.reason !== (l.leaveType || "休假") ? `・${l.reason}` : ""}
                         </div>
-                      );
-                    })}
-                  </div>
-                );
+                      ))}
+                      {list.map((c) => (
+                        <CaseChip key={c.id} surveyCase={c} colorClass={color.chip} dimmed={!!dimPastCases && past} onClick={() => onCaseClick(c)} wrap />
+                      ))}
+                      {free && !past && (
+                        <button
+                          type="button"
+                          onClick={() => onAdd(d, s.name, h.time)}
+                          className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs text-muted-foreground"
+                          title={`新增 ${s.name} ${format(d, "M/d")} ${h.label} 的案件`}
+                          data-testid={`board-add-${s.name}-${k}-${h.key}`}
+                        >
+                          <Plus className="h-3.5 w-3.5 mr-0.5" />{h.label}空檔
+                        </button>
+                      )}
+                    </div>
+                  );
+                });
               }),
             ];
           })}
 
           {/* 每天合計 */}
-          <div className="bg-muted sticky left-0 z-10 px-2 py-1 text-xs text-muted-foreground">每日合計</div>
+          <div className="bg-muted sticky left-0 z-10 px-2 py-1 text-xs text-muted-foreground" style={{ gridColumn: 1, gridRow: rows.length * 2 + 2 }}>每日合計</div>
           {days.map((d, j) => {
             const k = keys[j], am = countOf(k, "am"), pm = countOf(k, "pm"), weekBreak = j > 0 && d.getDay() < days[j - 1].getDay();
             return (
-              <div key={`t-${k}`} className={cn("bg-muted px-1.5 py-1 text-center text-xs tabular-nums text-muted-foreground", weekBreak && "border-l-4 border-l-border")}>
+              <div key={`t-${k}`} style={{ gridColumn: j + 2, gridRow: rows.length * 2 + 2 }} className={cn("bg-muted px-1.5 py-1 text-center text-xs tabular-nums text-muted-foreground", weekBreak && "border-l-4 border-l-border")}>
                 {am + pm ? <>上 <b className="text-foreground">{am}</b>・下 <b className="text-foreground">{pm}</b></> : "—"}
               </div>
             );
