@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { addDays, format, isToday, startOfWeek } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { CaseChip } from "@/components/calendar-view";
 import { leaveBarClass } from "@/components/leave-form";
 import { useWorkdays } from "@/hooks/use-workdays";
+import { useReschedule, DRAG_TYPE } from "@/lib/reschedule";
 import { useSurveyorVisibility } from "@/lib/surveyor-visibility";
 import { SurveyorVisibilityMenu } from "@/components/surveyor-visibility-menu";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
@@ -39,8 +40,21 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [span, setSpan] = useState<1 | 2>(readSpan);
   const { info: dayInfo } = useWorkdays();
+  // 拖曳改期：拖到別的日期、上下午或別位測量員；同一半天內移動時保留原時間
+  const { move, alert: rescheduleAlert } = useReschedule();
+  const [dropKey, setDropKey] = useState<string | null>(null);
   const { data: surveyors = [] } = useQuery<Surveyor[]>({ queryKey: ["/api/surveyors"] });
   const { data: leaves = [] } = useQuery<SurveyorLeave[]>({ queryKey: ["/api/leaves"] });
+
+  // 首頁快捷鍵 ←／→／T 送來的換週指令（0 = 回本週）
+  useEffect(() => {
+    const onNav = (e: Event) => {
+      const step = (e as CustomEvent<number>).detail;
+      setWeekStart((w) => (step === 0 ? startOfWeek(new Date(), { weekStartsOn: 1 }) : addDays(w, step * 7)));
+    };
+    window.addEventListener("ms-board-nav", onNav);
+    return () => window.removeEventListener("ms-board-nav", onNav);
+  }, []);
 
   const changeSpan = (n: 1 | 2) => { setSpan(n); try { localStorage.setItem(SPAN_KEY, String(n)); } catch { /* 只影響這次 */ } };
 
@@ -125,7 +139,7 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
 
       <div className="rounded-lg border overflow-auto xl:flex-1 xl:min-h-0 thin-scroll">
         <div
-          className="grid min-w-[900px] min-h-full bg-border gap-px"
+          className="grid min-w-[900px] content-start bg-border gap-px"
           // 每列依內容自動長高，完整顯示每格內容；表格放不下時在表格內捲動
           style={{ gridTemplateColumns: gridCols, gridTemplateRows: `auto repeat(${rows.length * 2}, minmax(38px, auto)) auto` }}
         >
@@ -183,8 +197,16 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
                         weekBreak && "border-l-4 border-l-border",
                         hi === 1 && "-mt-px border-t border-dashed border-border",   // 上下午之間用虛線，測量員之間是實線
                         dimRow(s.name) && "[&>*]:opacity-30",
+                        dropKey === `${s.name}|${k}|${h.key}` && "ring-2 ring-inset ring-primary bg-primary/10",
                       )}
                       data-testid={`board-${s.name}-${k}-${h.key}`}
+                      onDragOver={(e) => { if (e.dataTransfer.types.includes(DRAG_TYPE)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; const dk = `${s.name}|${k}|${h.key}`; if (dropKey !== dk) setDropKey(dk); } }}
+                      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropKey(null); }}
+                      onDrop={(e) => {
+                        e.preventDefault(); setDropKey(null);
+                        const c = cases.find((x) => x.id === e.dataTransfer.getData(DRAG_TYPE));
+                        if (c) move(c, { date: k, surveyor: s.name, time: halfOf(c) === h.key ? c.scheduledTime : h.time });
+                      }}
                     >
                       {!list.length && !lv.length && <span className="absolute right-1 top-0.5 text-[10px] text-muted-foreground/50 pointer-events-none">{h.label}</span>}
                       {lv.map((l) => (
@@ -197,7 +219,7 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
                         </div>
                       ))}
                       {list.map((c) => (
-                        <CaseChip key={c.id} surveyCase={c} colorClass={color.chip} dimmed={!!dimPastCases && past} onClick={() => onCaseClick(c)} wrap />
+                        <CaseChip key={c.id} surveyCase={c} colorClass={color.chip} dimmed={!!dimPastCases && past} onClick={() => onCaseClick(c)} wrap draggable />
                       ))}
                       {free && !past && (
                         <button
@@ -229,6 +251,7 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
           })}
         </div>
       </div>
+      {rescheduleAlert}
     </div>
   );
 }

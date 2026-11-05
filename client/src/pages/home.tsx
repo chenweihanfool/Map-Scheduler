@@ -1,6 +1,7 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
+import { addMonths } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Map as MapIcon, Calendar as CalendarIcon, List, Settings, User, CalendarOff, Sparkles, FileBarChart, LayoutGrid, EyeOff } from "lucide-react";
+import { Plus, Map as MapIcon, Calendar as CalendarIcon, List, Settings, User, CalendarOff, Sparkles, FileBarChart, LayoutGrid, EyeOff, Keyboard } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,10 +25,22 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.30.0";
+const APP_VERSION = "v2.31.0";
 const RELEASE_DATE = "2026-11-05";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.31.0",
+    date: "2026-11-05",
+    items: [
+      "登記請假遇到已排案件時，每件可一鍵「改到」建議空檔（請假結束後最近的空檔），也可「全部改到建議時段」",
+      "刪除案件、取消請假後會跳出「復原」提示，10 秒內按復原即可放回（延期連結一併接回）",
+      "兩人同時編輯同一件時，後存的人會看到「這件剛被其他人修改過」，可選放棄自己的修改或仍以自己的內容儲存",
+      "月曆、排班表可直接把案件拖到別的日期（排班表也可拖到別的時段或測量員）改期，會檢查非工作日與同時段已有案件，改完可復原",
+      "更多快捷鍵：←／→ 換月或換週、T 回今天、1～4 切換分頁、/ 搜尋、? 顯示快捷鍵說明（右上角也有鍵盤圖示）",
+      "月曆、排班表點案件改為先看詳細資料，要修改再按「編輯」",
+    ],
+  },
   {
     version: "v2.30.0",
     date: "2026-11-05",
@@ -465,22 +478,34 @@ export default function Home() {
     setIsFormOpen(true);
   };
 
-  // 快捷鍵 N：新增案件（正在打字或已有視窗開著時不作用）
+  // 快捷鍵（正在打字或已有視窗開著時不作用）：
+  // N 新增案件、←／→ 上一個／下一個月（排班表為週）、T 回今天、1～4 切換月曆／排班表／地圖／列表、/ 搜尋、? 快捷鍵說明
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "n" && e.key !== "N") return;
       if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"], [data-radix-popper-content-wrapper]')) return;
+      const k = e.key;
+      const nav = (step: number) => {
+        if (activeView === "board") window.dispatchEvent(new CustomEvent("ms-board-nav", { detail: step }));
+        else setCurrentMonth((m) => (step === 0 ? new Date() : addMonths(m, step)));
+      };
+      const views: Record<string, View> = { "1": "calendar", "2": "board", "3": "map", "4": "list" };
+      if (k === "n" || k === "N") { setEditCase(null); setSelectedDate(undefined); setIsFormOpen(true); }
+      else if (k === "ArrowLeft") nav(-1);
+      else if (k === "ArrowRight") nav(1);
+      else if (k === "t" || k === "T") nav(0);
+      else if (views[k]) setActiveView(views[k]);
+      else if (k === "/") (document.querySelector('input[placeholder^="搜尋案件"]') as HTMLInputElement | null)?.focus();
+      else if (k === "?") setShortcutsOpen(true);
+      else return;
       e.preventDefault();
-      setEditCase(null);
-      setSelectedDate(undefined);
-      setIsFormOpen(true);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [activeView]);
 
   const handleDateClick = (date: Date) => {
     setEditCase(null);
@@ -567,6 +592,9 @@ export default function Home() {
                   <span className="hidden sm:inline">請假管理</span>
                 </Button>
               </Link>
+              <Button variant="ghost" size="icon" onClick={() => setShortcutsOpen(true)} title="快捷鍵（?）" aria-label="快捷鍵" data-testid="button-shortcuts">
+                <Keyboard className="h-4 w-4" />
+              </Button>
               <Link href="/settings">
                 <Button variant="ghost" size="icon" data-testid="button-settings">
                   <Settings className="h-5 w-5" />
@@ -643,7 +671,7 @@ export default function Home() {
                 currentMonth={currentMonth}
                 onMonthChange={setCurrentMonth}
                 onDateClick={handleDateClick}
-                onCaseClick={handleEdit}
+                onCaseClick={handleCaseDetail}
                 surveyorFilter={surveyorFilter}
                 caseTypeFilter={caseTypeFilter}
                 showVacantOnly={showVacantOnly}
@@ -655,7 +683,7 @@ export default function Home() {
                 cases={filteredCases}
                 surveyorFilter={surveyorFilter}
                 dimPastCases={dimPastCases}
-                onCaseClick={handleEdit}
+                onCaseClick={handleCaseDetail}
                 onAdd={(date, surveyor, time) => {
                   setEditCase(null);
                   setSelectedDate(date);
@@ -751,6 +779,28 @@ export default function Home() {
           <p className="xl:inline">國土測繪圖資服務雲 (NLSC) | 苗栗縣政府地理資訊系統</p>
         </div>
       </main>
+
+      <Dialog open={shortcutsOpen} onOpenChange={setShortcutsOpen}>
+        <DialogContent className="sm:max-w-sm" data-testid="shortcuts-dialog">
+          <DialogHeader><DialogTitle>快捷鍵</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+            {([
+              ["N", "新增案件"],
+              ["← / →", activeView === "board" ? "上一週／下一週" : "上一個月／下一個月"],
+              ["T", "回到今天"],
+              ["1 / 2 / 3 / 4", "月曆／排班表／地圖／列表"],
+              ["/", "搜尋案件"],
+              ["?", "顯示這個說明"],
+            ] as const).map(([key, desc]) => (
+              <Fragment key={key}>
+                <kbd className="justify-self-start rounded border bg-muted px-1.5 py-0.5 font-mono text-xs">{key}</kbd>
+                <span>{desc}</span>
+              </Fragment>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">正在輸入文字或有視窗開著時不會作用。月曆、排班表也可以直接把案件拖到別的日期改期。</p>
+        </DialogContent>
+      </Dialog>
 
       <CaseFormDialog
         open={isFormOpen}

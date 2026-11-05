@@ -129,6 +129,15 @@ export async function upgradeCaseTypeAliases(): Promise<void> {
 }
 
 // v2.16.0 延期：新增狀態、延期理由與前後案件連結欄位；v2.17.0 連件 subs（欄位不存在才新增）
+// v2.31.0：案件最後修改時間（存檔時比對，避免兩人同時編輯互相覆蓋）
+export async function upgradeCaseUpdatedAt(): Promise<void> {
+  try {
+    await pool.query("ALTER TABLE mapscheduler.survey_cases ADD COLUMN IF NOT EXISTS updated_at timestamp DEFAULT now()");
+  } catch (error) {
+    console.error("upgradeCaseUpdatedAt failed:", error);
+  }
+}
+
 export async function upgradePostponeFields(): Promise<void> {
   try {
     await pool.query("ALTER TABLE mapscheduler.survey_cases ADD COLUMN IF NOT EXISTS subs jsonb");   // v2.17.0 連件

@@ -117,6 +117,7 @@ export const surveyCases = pgTable("survey_cases", {
   coordinateSource: text("coordinate_source"), // NLSC or Miaoli GIS
   notes: text("notes"), // 備註
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(), // 最後修改時間：存檔時比對，避免兩人同時編輯互相覆蓋
 });
 
 export const subCaseSchema = z.object({
@@ -130,6 +131,7 @@ export const subsOf = (c: { subs?: SubCase[] | null }) => (c.subs ?? []).filter(
 export const insertSurveyCaseSchema = createInsertSchema(surveyCases).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
   coordinateStatus: true,
   coordinateSource: true,
 }).extend({

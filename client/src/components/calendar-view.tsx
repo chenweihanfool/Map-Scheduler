@@ -26,6 +26,7 @@ import { LeaveForm, leaveStyle, leaveBarClass } from "@/components/leave-form";
 import { applicantText } from "@/lib/receive";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 import { useWorkdays } from "@/hooks/use-workdays";
+import { useReschedule, DRAG_TYPE } from "@/lib/reschedule";
 import { useSurveyorVisibility } from "@/lib/surveyor-visibility";
 import { SurveyorVisibilityMenu } from "@/components/surveyor-visibility-menu";
 import type { WorkdayInfo } from "@shared/holidays";
@@ -84,6 +85,9 @@ export function CalendarView({
   const today = startOfDay(new Date());
   const [detailDay, setDetailDay] = useState<{ date: Date; dateKey: string } | null>(null);
   const [hideWeekends, setHideWeekends] = useState(true);
+  // 拖曳改期：把案件拖到別的日期（時間不變）；dropKey 是目前滑過的那一格
+  const { move, alert: rescheduleAlert } = useReschedule();
+  const [dropKey, setDropKey] = useState<string | null>(null);
   // 精簡模式：格子裡每位測量員一行（件數與時段），請假標在名字旁，不畫橫條；會記住
   const [compact, setCompactState] = useState(() => { try { return localStorage.getItem("ms-cal-compact") === "1"; } catch { return false; } });
   const setCompact = (v: boolean) => { setCompactState(v); try { localStorage.setItem("ms-cal-compact", v ? "1" : "0"); } catch { /* 只影響這次 */ } };
@@ -354,8 +358,16 @@ export function CalendarView({
                 "bg-background min-h-[120px] 2xl:min-h-[150px] xl:min-h-0 p-1 relative group xl:flex xl:flex-col xl:overflow-hidden",
                 !wd.workday && isCurrentMonth && "bg-[repeating-linear-gradient(135deg,rgb(239_68_68/0.06)_0_6px,transparent_6px_12px)]",
                 !isCurrentMonth && "bg-muted/50",
-                dimPastCases && isPastDay && !isTodayDate && "bg-muted/30"
+                dimPastCases && isPastDay && !isTodayDate && "bg-muted/30",
+                dropKey === dateKey && "ring-2 ring-inset ring-primary bg-primary/10",
               )}
+              onDragOver={(e) => { if (e.dataTransfer.types.includes(DRAG_TYPE)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dropKey !== dateKey) setDropKey(dateKey); } }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropKey(null); }}
+              onDrop={(e) => {
+                e.preventDefault(); setDropKey(null);
+                const c = cases.find((x) => x.id === e.dataTransfer.getData(DRAG_TYPE));
+                if (c) move(c, { date: dateKey });
+              }}
               data-testid={`calendar-day-${dateKey}`}
             >
               {(wd.kind === "holiday" || wd.kind === "off") && isCurrentMonth && (
@@ -426,6 +438,7 @@ export function CalendarView({
                         colorClass={surveyorColors[surveyor] || "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700"}
                         dimmed={dimPastCases && isPastDay && !isTodayDate}
                         onClick={() => onCaseClick(c)}
+                        draggable
                       />
                     ))}
                   </div>
@@ -519,6 +532,7 @@ export function CalendarView({
         ))}
       </div>
 
+      {rescheduleAlert}
       <WorkdayEditor open={editWorkdays} onOpenChange={setEditWorkdays} month={currentMonth} key={editWorkdays ? "open" : "closed"} />
 
       {/* 請假詳細（點月曆上的橫條） */}
@@ -673,12 +687,14 @@ export function CaseChip({
   dimmed,
   onClick,
   wrap,
+  draggable,
 }: {
   surveyCase: SurveyCase;
   colorClass: string;
   dimmed: boolean;
   onClick: () => void;
   wrap?: boolean;   // 排班表：內容換行完整顯示，不截斷
+  draggable?: boolean;   // 可拖到別的日期（或排班表的別的時段）改期
 }) {
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties | null>(null);
 
@@ -706,6 +722,8 @@ export function CaseChip({
         onClick={onClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        draggable={draggable && !isPostponed(c)}
+        onDragStart={(e) => { setTooltipStyle(null); e.dataTransfer.setData(DRAG_TYPE, c.id); e.dataTransfer.effectAllowed = "move"; }}
         className={cn(
           "w-full text-left text-xs px-1.5 py-0.5 rounded border hover-elevate",
           wrap ? "whitespace-normal break-words leading-snug" : "truncate",

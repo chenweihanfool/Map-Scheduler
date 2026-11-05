@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { deleteLeave, restoreLeave, useUndoToast } from "@/lib/undo";
 import { fmtDate } from "@/lib/date-style";
 import { useLocation } from "wouter";
 import { ArrowLeft, CalendarOff, Plus, Pencil, Trash2, Search } from "lucide-react";
@@ -127,13 +128,13 @@ export default function LeavesPage() {
     setKeyword("");
   };
 
+  const undoToast = useUndoToast();
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return apiRequest("DELETE", `/api/leaves/${id}`);
-    },
-    onSuccess: () => {
+    mutationFn: async (id: string) => deleteLeave(id),
+    onSuccess: (row) => {
       invalidateLeaves();
-      toast({ title: "請假已取消" });
+      if (row) undoToast(`${row.leaveType || "請假"}已取消`, `${row.surveyorName} ${row.startDatetime} ~ ${row.endDatetime}`, () => restoreLeave(row));
+      else toast({ title: "請假已取消" });
       setDeleteDialogOpen(false);
       setDeletingLeave(null);
     },

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { DateInput } from "@/components/date-input";
 import { fmtDate } from "@/lib/date-style";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +27,10 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { caseLabel } from "@/lib/receive";
-import { LEAVE_TYPES, type LeaveType, type Surveyor, type SurveyorLeave } from "@shared/schema";
+import { LEAVE_TYPES, type LeaveType, type SurveyCase, type Surveyor, type SurveyorLeave } from "@shared/schema";
+import { useWorkdays } from "@/hooks/use-workdays";
+import { recommendSlot } from "@/lib/recommend-date";
+import { useReschedule } from "@/lib/reschedule";
 
 // 三種類型的顏色比照「測量案件排程」：休假橘、出差紫、上課藍
 export const LEAVE_STYLES: Record<LeaveType, { text: string; chip: string; active: string }> = {
@@ -99,6 +102,41 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
   const [conflictOpen, setConflictOpen] = useState(false);
   const [conflicts, setConflicts] = useState<ConflictCase[]>([]);
   const [pending, setPending] = useState<LeaveSubmitData | null>(null);
+  const { move, alert: rescheduleAlert } = useReschedule();
+  const { info: dayInfo } = useWorkdays();
+  const { data: allCases = [] } = useQuery<SurveyCase[]>({ queryKey: ["/api/cases"], enabled: open });
+  const { data: allLeaves = [] } = useQuery<SurveyorLeave[]>({ queryKey: ["/api/leaves"], enabled: open });
+  const [moving, setMoving] = useState(false);
+
+  // 衝突案件的建議改期時段：把這次要登記的請假也算進去，並依序把已建議的時段當成占用，避免幾件排到同一格
+  const suggestions = (() => {
+    if (!pending || !conflicts.length) return new Map<string, { date: string; time: string }>();
+    const leaves = [...allLeaves.filter((l) => l.id !== editingLeave?.id), { surveyorName: pending.surveyorName, startDatetime: pending.startDatetime, endDatetime: pending.endDatetime } as SurveyorLeave];
+    const booked: SurveyCase[] = [...allCases];
+    const out = new Map<string, { date: string; time: string }>();
+    conflicts.forEach((cf) => {
+      const c = allCases.find((x) => x.id === cf.id);
+      if (!c) return;
+      const rec = recommendSlot({ surveyor: c.surveyor, cases: booked.filter((x) => x.id !== c.id), leaves, isWorkday: (d) => dayInfo(d).workday, after: pending.endDatetime.slice(0, 10) });
+      if (!rec) return;
+      out.set(c.id, { date: rec.date, time: rec.time });
+      booked.push({ ...c, id: `${c.id}-planned`, surveyDate: rec.date, scheduledTime: rec.time });
+    });
+    return out;
+  })();
+
+  const moveOne = (id: string, quiet = false) => new Promise<void>((resolve) => {
+    const c = allCases.find((x) => x.id === id), to = suggestions.get(id);
+    if (!c || !to) return resolve();
+    move(c, to, { quiet, onDone: (u) => { if (u) setConflicts((list) => list.filter((x) => x.id !== id)); resolve(); } });
+  });
+  const moveAll = async () => {
+    setMoving(true);
+    const ids = conflicts.map((c) => c.id).filter((id) => suggestions.has(id));
+    for (const id of ids) await moveOne(id, true);
+    setMoving(false);
+    toast({ title: `已把 ${ids.length} 件改到建議時段`, description: "改錯了可以打開案件再調整" });
+  };
 
   const blank = () => ({
     surveyorId: "",
@@ -341,16 +379,36 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2">
-                <p>以下 {conflicts.length} 筆案件在{pending?.leaveType ?? "請假"}時段內，確定仍要{editingLeave ? "儲存修改" : "登記"}嗎？</p>
-                <div className="max-h-40 overflow-y-auto space-y-1 mt-2">
-                  {conflicts.map((c) => (
-                    <div key={c.id} className="text-xs p-2 bg-muted rounded border">
-                      <span className="font-medium">{caseLabel(c)}</span>
-                      {" · "}{fmtDate(c.surveyDate)} {c.scheduledTime}
-                      {" · "}{c.landParcel}
-                    </div>
-                  ))}
+                {conflicts.length ? (
+                  <p>以下 {conflicts.length} 筆案件在{pending?.leaveType ?? "請假"}時段內。可以先把案件改到建議的空檔，或直接{editingLeave ? "儲存修改" : "登記"}。</p>
+                ) : (
+                  <p className="text-green-700 dark:text-green-400">衝突的案件都改期了，可以{editingLeave ? "儲存修改" : "登記"}了。</p>
+                )}
+                <div className="max-h-60 overflow-y-auto space-y-1 mt-2">
+                  {conflicts.map((c) => {
+                    const to = suggestions.get(c.id);
+                    return (
+                      <div key={c.id} className="text-xs p-2 bg-muted rounded border flex items-center gap-2" data-testid={`conflict-${c.id}`}>
+                        <div className="min-w-0 flex-1">
+                          <span className="font-medium">{caseLabel(c)}</span>
+                          {" · "}{fmtDate(c.surveyDate)} {c.scheduledTime}
+                          {" · "}{c.landParcel}
+                        </div>
+                        {to && (
+                          <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs shrink-0 gap-1" disabled={moving} onClick={() => moveOne(c.id)} data-testid={`button-move-${c.id}`}>
+                            <Sparkles className="h-3 w-3 text-primary" />改到 {fmtDate(to.date)} {to.time}
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+                {conflicts.length > 1 && suggestions.size > 1 && (
+                  <Button type="button" size="sm" variant="secondary" className="w-full" disabled={moving} onClick={moveAll} data-testid="button-move-all">
+                    <Sparkles className="h-3.5 w-3.5 mr-1 text-primary" />{moving ? "改期中…" : `全部改到建議時段（${suggestions.size} 件）`}
+                  </Button>
+                )}
+                <p className="text-[11px] text-muted-foreground">建議時段：{pending?.surveyorName} 在請假結束後最近的空檔（避開其他請假與非工作日，上午優先）。</p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -361,11 +419,12 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
               className="bg-amber-600 hover:bg-amber-700 text-white"
               data-testid="button-confirm-force-leave"
             >
-              {saveMutation.isPending ? "處理中..." : editingLeave ? "仍要儲存修改" : "仍要登記"}
+              {saveMutation.isPending ? "處理中..." : conflicts.length ? (editingLeave ? "仍要儲存修改" : "仍要登記") : (editingLeave ? "儲存修改" : "登記")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {rescheduleAlert}
     </>
   );
 }

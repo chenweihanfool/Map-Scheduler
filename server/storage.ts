@@ -16,7 +16,7 @@ import {
   type WorkdayOverride,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, asc, and, gte, lte, or, ilike, sql } from "drizzle-orm";
+import { eq, desc, asc, and, gte, lte, or, ilike, sql, getTableColumns } from "drizzle-orm";
 
 // HERMES 請假 API upsert 時會寫入的欄位（externalId 由方法參數決定，不在此列）
 export type LeaveUpsertData = {
@@ -62,6 +62,8 @@ export interface IStorage {
   createLeave(data: InsertSurveyorLeave): Promise<SurveyorLeave>;
   updateLeave(id: string, data: Partial<InsertSurveyorLeave>): Promise<SurveyorLeave | undefined>;
   deleteLeave(id: string): Promise<boolean>;
+  restoreCase(row: SurveyCase): Promise<SurveyCase>;
+  restoreLeave(row: SurveyorLeave): Promise<SurveyorLeave>;
   getLeaveByExternalId(externalId: string): Promise<SurveyorLeave | undefined>;
   upsertLeaveByExternalId(externalId: string, data: LeaveUpsertData): Promise<{ leave: SurveyorLeave; created: boolean }>;
   deleteLeaveByExternalId(externalId: string): Promise<boolean>;
@@ -136,7 +138,7 @@ export class DatabaseStorage implements IStorage {
   async updateCase(id: string, data: UpdateSurveyCase): Promise<SurveyCase | undefined> {
     const [surveyCase] = await db
       .update(surveyCases)
-      .set(data)
+      .set({ ...data, updatedAt: new Date() })
       .where(eq(surveyCases.id, id))
       .returning();
     return surveyCase || undefined;
@@ -222,10 +224,32 @@ export class DatabaseStorage implements IStorage {
       if (from) Object.assign(patch, { postponedFromDate: from.surveyDate, postponedFromTime: from.scheduledTime });
       const diff = Object.entries(patch).some(([k, v]) => JSON.stringify((c as any)[k] ?? null) !== JSON.stringify(v ?? null));
       if (!diff) continue;
-      const [u] = await db.update(surveyCases).set(patch as any).where(eq(surveyCases.id, cid)).returning();
+      const [u] = await db.update(surveyCases).set({ ...(patch as any), updatedAt: new Date() }).where(eq(surveyCases.id, cid)).returning();
       if (cid !== id) changed.push(u);
     }
     return changed;
+  }
+
+  // 復原刪除：用原本的 id 與全部欄位放回去，並接回延期連結（與 deleteCase 清掉的相反）
+  async restoreCase(row: SurveyCase): Promise<SurveyCase> {
+    const cols = Object.keys(getTableColumns(surveyCases));
+    const values: any = Object.fromEntries(Object.entries(row).filter(([k]) => cols.includes(k)));
+    for (const k of ["createdAt", "updatedAt"]) if (values[k]) values[k] = new Date(values[k]);
+    values.updatedAt = new Date();
+    const [c] = await db.insert(surveyCases).values(values).onConflictDoNothing().returning();
+    if (!c) throw Object.assign(new Error("這件案件已經存在"), { status: 409 });
+    if (c.postponedFromId) await db.update(surveyCases).set({ postponedToId: c.id, postponedToDate: c.surveyDate, postponedToTime: c.scheduledTime }).where(eq(surveyCases.id, c.postponedFromId));
+    if (c.postponedToId) await db.update(surveyCases).set({ postponedFromId: c.id, postponedFromDate: c.surveyDate, postponedFromTime: c.scheduledTime }).where(eq(surveyCases.id, c.postponedToId));
+    return c;
+  }
+
+  async restoreLeave(row: SurveyorLeave): Promise<SurveyorLeave> {
+    const cols = Object.keys(getTableColumns(surveyorLeaves));
+    const values: any = Object.fromEntries(Object.entries(row).filter(([k]) => cols.includes(k)));
+    for (const k of ["createdAt", "updatedAt"]) if (values[k]) values[k] = new Date(values[k]);
+    const [l] = await db.insert(surveyorLeaves).values(values).onConflictDoNothing().returning();
+    if (!l) throw Object.assign(new Error("這筆請假已經存在"), { status: 409 });
+    return l;
   }
 
   async deleteCase(id: string): Promise<boolean> {
