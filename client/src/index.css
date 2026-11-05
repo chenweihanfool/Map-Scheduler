@@ -312,11 +312,59 @@
   background-color: #f7f7f7;
   font-weight: 600;
 }
+/* A3 報表明細：欄位多，字略小、可換行；月份列整列底色 */
+.rp-detail {
+  font-size: 13px;
+  line-height: 1.35;
+  table-layout: fixed;
+}
+.rp-detail th,
+.rp-detail td {
+  padding: 4px 6px;
+  vertical-align: top;
+  word-break: break-all;
+}
+/* 案號：在「-」處換行，不從數字中間切開 */
+.rp-detail td.rp-no {
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+.rp-detail .rp-month td {
+  background-color: #e8eef6;
+  font-weight: 700;
+  font-size: 14px;
+  border-top: 2px solid #525252;
+}
+.rp-detail .rp-sub td {
+  color: #525252;
+  background-color: #fafafa;
+  border-top-style: dashed;
+}
+.rp-detail tbody tr:nth-child(even):not(.rp-month):not(.rp-sub) td {
+  background-color: #fbfbfb;
+}
 
 @media print {
+  /* 報表：A3 橫向，每一頁就是畫面上預覽的一頁（版面已含留白） */
   @page {
-    size: A4;
-    margin: 14mm 12mm;
+    size: A3 landscape;
+    margin: 0;
+  }
+  .rp-wrap {
+    height: auto !important;
+    margin: 0 !important;
+  }
+  .rp-scale {
+    transform: none !important;
+  }
+  .rp-page {
+    box-shadow: none !important;
+    break-after: page;
+    page-break-after: always;
+  }
+  .rp-wrap:last-child .rp-page {
+    break-after: auto;
+    page-break-after: auto;
   }
   /* 深色模式時 color-scheme: dark 會讓頁邊空白也變黑，列印一律用淺色 */
   :root,
