@@ -90,6 +90,8 @@ interface CaseFormDialogProps {
   onOpenChange: (open: boolean) => void;
   editCase?: SurveyCase | null;
   defaultDate?: Date;
+  defaultSurveyor?: string;   // 從排班表點空格新增：預先帶入測量員與時段
+  defaultTime?: string;
   onPostpone?: (c: SurveyCase) => void;
   onOpenCase?: (id: string) => void;
   onChangePostponeDate?: (c: SurveyCase) => void;
@@ -158,7 +160,7 @@ interface SurveyorRecommendation {
   reasons: string[];
 }
 
-export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPostpone, onOpenCase, onChangePostponeDate, onCancelPostpone }: CaseFormDialogProps) {
+export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, defaultSurveyor, defaultTime, onPostpone, onOpenCase, onChangePostponeDate, onCancelPostpone }: CaseFormDialogProps) {
   const { toast } = useToast();
   const isEditing = !!editCase;
   const { info: dayInfo } = useWorkdays();
@@ -373,14 +375,14 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
     if (suggestedData) {
       setSuggestedSurveyor(suggestedData.surveyor);
       setAssignmentMode(suggestedData.mode);
-      if (!isEditing && suggestedData.surveyor && isInitialLoad && !hasSmartRecommendations) {
+      if (!isEditing && !defaultSurveyor && suggestedData.surveyor && isInitialLoad && !hasSmartRecommendations) {
         form.setValue("surveyor", suggestedData.surveyor.name);
       }
     }
   }, [suggestedData, isEditing, isInitialLoad, hasSmartRecommendations]);
 
   useEffect(() => {
-    if (!isEditing && hasSmartRecommendations && recommendations[0]) {
+    if (!isEditing && !defaultSurveyor && hasSmartRecommendations && recommendations[0]) {
       form.setValue("surveyor", recommendations[0].surveyor);
     }
   }, [hasSmartRecommendations, recommendations, isEditing]);
@@ -389,9 +391,9 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
     if (open) {
       setIsInitialLoad(true);
       scheduleTouched.current = false;
-      const defaultSurveyor = isEditing 
+      const initialSurveyor = isEditing 
         ? (editCase?.surveyor ?? "") 
-        : "";
+        : (defaultSurveyor ?? "");
       
       const parsed = editCase?.landParcel ? parseLandParcel(editCase.landParcel) : { section: "", lotNumber: "" };
       
@@ -407,7 +409,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
         scheduledTime = suggested.timeSlot;
       } else if (!isEditing && defaultDate && !scheduledTime) {
         // When clicking a calendar day, default to morning slot
-        scheduledTime = "上午 09:00";
+        scheduledTime = defaultTime ?? "上午 09:00";
       }
       
       setSubRows(subsOf(editCase ?? {}).map((x) => {
@@ -425,7 +427,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
         courtDivision: editCase?.courtDivision ?? "",
         courtDocNo: editCase?.courtDocNo ?? "",
         agent: editCase?.agent ?? "",
-        surveyor: defaultSurveyor,
+        surveyor: initialSurveyor,
         surveyDate,
         scheduledTime,
         notes: editCase?.notes ?? "",
@@ -439,7 +441,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, onPo
       
       setTimeout(() => setIsInitialLoad(false), 100);
     }
-  }, [open, editCase, defaultDate]);
+  }, [open, editCase, defaultDate, defaultSurveyor, defaultTime]);
 
   const watchedCaseType = form.watch("caseType");
   const isCourt = isCourtCase(watchedCaseType);

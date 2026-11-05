@@ -630,7 +630,7 @@ export function CalendarView({
 }
 
 // ── Case chip with fixed-position hover tooltip ───────────────────────────────
-function CaseChip({
+export function CaseChip({
   surveyCase: c,
   colorClass,
   dimmed,

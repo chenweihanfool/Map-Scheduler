@@ -8,7 +8,7 @@ export const AFTERNOON = "14:00";
 const AFTERNOON_AFTER_DAYS = 14;   // 14 天內只推薦上午，超過才考慮下午
 
 // 「上午 09:00」「14:00」「下午 2:00」→ 24 小時制的小時
-function hourOf(time: string | null | undefined): number | null {
+export function hourOf(time: string | null | undefined): number | null {
   const m = (time ?? "").match(/(\d{1,2}):(\d{2})/);
   if (!m) return null;
   let h = Number(m[1]);
