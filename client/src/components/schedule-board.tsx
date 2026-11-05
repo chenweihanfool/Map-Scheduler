@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { CaseChip } from "@/components/calendar-view";
 import { leaveBarClass } from "@/components/leave-form";
 import { useWorkdays } from "@/hooks/use-workdays";
+import { useSurveyorVisibility } from "@/lib/surveyor-visibility";
+import { SurveyorVisibilityMenu } from "@/components/surveyor-visibility-menu";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 import { fmtDate } from "@/lib/date-style";
 import { hourOf } from "@/lib/recommend-date";
@@ -54,10 +56,15 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
   }, [weekStart, span, dayInfo, cases]);
   const keys = days.map((d) => format(d, "yyyy-MM-dd"));
 
+  // 使用者設定隱藏的測量員不列；淡化的整列變淡（篩選那位時照常顯示）
+  const { visOf } = useSurveyorVisibility();
   const rows = useMemo(
-    () => surveyors.map((s, i) => ({ s, i })).filter(({ s }) => !surveyorFilter || surveyorFilter === "all" || s.name === surveyorFilter),
-    [surveyors, surveyorFilter],
+    () => surveyors.map((s, i) => ({ s, i }))
+      .filter(({ s }) => !surveyorFilter || surveyorFilter === "all" || s.name === surveyorFilter)
+      .filter(({ s }) => surveyorFilter === s.name || visOf(s.name) !== "hide"),
+    [surveyors, surveyorFilter, visOf],
   );
+  const dimRow = (name: string) => surveyorFilter !== name && visOf(name) === "dim";
 
   // 測量員|日期|上下午 → 案件
   const slots = useMemo(() => {
@@ -111,6 +118,7 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
               </button>
             ))}
           </div>
+          <SurveyorVisibilityMenu />
           <Button variant="outline" onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))} data-testid="button-board-today">本週</Button>
         </div>
       </div>
@@ -147,7 +155,7 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
           {rows.map(({ s, i }) => {
             const color = surveyorColorStyle(s, i);
             return [
-              <div key={`h-${s.id}`} className={cn("sticky left-0 z-10 px-2 py-1.5 flex flex-col justify-center border-l-4", color.card)} data-testid={`board-row-${s.id}`}>
+              <div key={`h-${s.id}`} className={cn("sticky left-0 z-10 px-2 py-1.5 flex flex-col justify-center border-l-4", color.card, dimRow(s.name) && "opacity-40")} data-testid={`board-row-${s.id}`}>
                 <div className="font-medium text-sm truncate">{s.name}</div>
                 <div className="text-[11px] text-muted-foreground truncate">{s.businessAttribute}・{rangeCount(s.name)} 件</div>
               </div>,
@@ -158,6 +166,7 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
                     key={`${s.id}-${k}`}
                     className={cn(
                       "bg-background grid grid-rows-2 min-h-0",
+                      dimRow(s.name) && "[&>*]:opacity-30",
                       !w.workday && "bg-[repeating-linear-gradient(135deg,rgb(239_68_68/0.06)_0_6px,transparent_6px_12px)]",
                       isToday(d) && "bg-sky-50 dark:bg-sky-950/60",
                       weekBreak && "border-l-4 border-l-border",
