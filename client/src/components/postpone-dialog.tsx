@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import { format } from "date-fns";
 import { DateInput } from "@/components/date-input";
 import { fmtDate } from "@/lib/date-style";
-import { useMutation } from "@tanstack/react-query";
-import { CalendarClock } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { CalendarClock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +19,9 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { caseLabel } from "@/lib/receive";
 import { useNonWorkdayGuard } from "@/components/nonworkday-alert";
-import { POSTPONE_REASONS, isPostponePending, type SurveyCase } from "@shared/schema";
+import { useWorkdays } from "@/hooks/use-workdays";
+import { recommendSlot } from "@/lib/recommend-date";
+import { POSTPONE_REASONS, isPostponePending, type SurveyCase, type SurveyorLeave } from "@shared/schema";
 
 interface PostponeDialogProps {
   open: boolean;
@@ -31,6 +34,33 @@ const QUICK_TIMES = [
   { label: "上午9點", value: "09:00" },
   { label: "下午14點", value: "14:00" },
 ];
+
+// 這位測量員在 after（延期：目前排定日期；改延期日期：原案件日期）之後最近的空檔（避開請假、非工作日，上午優先），按「套用」帶入延期日期時間
+function SlotSuggestion({ caseData, after, date, time, onApply }: { caseData: SurveyCase; after?: string | null; date: string; time: string; onApply: (d: string, t: string) => void }) {
+  const { data: cases = [] } = useQuery<SurveyCase[]>({ queryKey: ["/api/cases"] });
+  const { data: leaves = [] } = useQuery<SurveyorLeave[]>({ queryKey: ["/api/leaves"] });
+  const { info } = useWorkdays();
+  const from = after || caseData.surveyDate;
+  const today = format(new Date(), "yyyy-MM-dd");
+  const rec = recommendSlot({
+    surveyor: caseData.surveyor, cases, leaves, isWorkday: (d) => info(d).workday,
+    excludeId: caseData.id, after: from > today ? from : undefined,
+  });
+  if (!rec) return null;
+  const applied = date === rec.date && time === rec.time;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 rounded-md bg-primary/5 px-2.5 py-1.5 text-xs" data-testid="postpone-recommendation">
+      <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+      <span className="text-muted-foreground">{caseData.surveyor} 最近空檔：</span>
+      <b className="tabular-nums">{fmtDate(rec.date, { weekday: true })} {rec.afternoon ? "下午" : "上午"} {rec.time}</b>
+      {!applied && (
+        <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-xs ml-auto" onClick={() => onApply(rec.date, rec.time)} data-testid="button-apply-postpone-recommendation">
+          套用
+        </Button>
+      )}
+    </div>
+  );
+}
 
 // 延期（比照測量案件排程）：選延期理由，延期日期可先不填；有日期時另建一筆新案件
 export function PostponeDialog({ open, onOpenChange, caseData, onDone }: PostponeDialogProps) {
@@ -105,6 +135,7 @@ export function PostponeDialog({ open, onOpenChange, caseData, onDone }: Postpon
             </div>
           </div>
 
+          <SlotSuggestion caseData={caseData} after={caseData.surveyDate} date={date} time={time} onApply={(d, t) => { setDate(d); setTime(t); }} />
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="postpone-date">延期日期（可先不填）</Label>
@@ -191,6 +222,7 @@ export function ChangePostponeDateDialog({ open, onOpenChange, caseData }: Chang
           <DialogTitle className="flex items-center gap-2"><CalendarClock className="h-5 w-5 text-amber-500" />更改延期日期</DialogTitle>
           <DialogDescription>{caseLabel(caseData)}・{caseData.landParcel}・由 {fmtDate(caseData.postponedFromDate)} {caseData.postponedFromTime} 延期</DialogDescription>
         </DialogHeader>
+        <SlotSuggestion caseData={caseData} after={caseData.postponedFromDate} date={date} time={time} onApply={(d, t) => { setDate(d); setTime(t); }} />
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
             <Label htmlFor="pp-new-date">延期日期</Label>
