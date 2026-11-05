@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Map as MapIcon, Calendar as CalendarIcon, List, Settings, User, CalendarOff, Sparkles, FileBarChart, LayoutGrid } from "lucide-react";
+import { Plus, Map as MapIcon, Calendar as CalendarIcon, List, Settings, User, CalendarOff, Sparkles, FileBarChart, LayoutGrid, EyeOff } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CaseFormDialog } from "@/components/case-form-dialog";
 import { ScheduleBoard } from "@/components/schedule-board";
+import { useSurveyorVisibility } from "@/lib/surveyor-visibility";
 import { CasesTable } from "@/components/cases-table";
 import { CalendarView } from "@/components/calendar-view";
 import { CalendarFilters } from "@/components/calendar-filters";
@@ -23,10 +24,19 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.28.0";
+const APP_VERSION = "v2.29.0";
 const RELEASE_DATE = "2026-11-05";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.29.0",
+    date: "2026-11-05",
+    items: [
+      "月曆、排班表新增「測量員顯示」設定：每位測量員可選顯示、淡化或隱藏，只套用在自己的瀏覽器",
+      "點右側測量員卡片篩選時，即使那位設為隱藏也會顯示；隱藏的測量員卡片標上劃線與圖示",
+      "右側測量員欄改窄，卡片更精簡",
+    ],
+  },
   {
     version: "v2.28.0",
     date: "2026-11-05",
@@ -365,6 +375,7 @@ export default function Home() {
     try { const v = localStorage.getItem("ms-home-view"); return v === "board" || v === "list" || v === "map" ? v : "calendar"; } catch { return "calendar"; }
   });
   const setActiveView = (v: View) => { setActiveViewState(v); try { localStorage.setItem("ms-home-view", v); } catch { /* 只影響這次 */ } };
+  const { visOf } = useSurveyorVisibility();
   const [slotDefaults, setSlotDefaults] = useState<{ surveyor: string; time: string } | null>(null);
   
   const [surveyorFilter, setSurveyorFilter] = useState("");
@@ -661,7 +672,7 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        <aside className="xl:w-56 xl:shrink-0 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
+        <aside className="xl:w-36 xl:shrink-0 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
         <h2 className="hidden xl:block text-sm font-medium text-muted-foreground mb-2">測量員</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-1 gap-4 xl:gap-2 mb-6">
           {surveyorsList.map((surveyor, index) => {
@@ -682,14 +693,15 @@ export default function Home() {
                 onClick={() => handleSurveyorCardClick(surveyor.name)}
                 data-testid={`card-surveyor-${surveyor.id}`}
               >
-                <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2 xl:px-3 xl:py-1.5">
+                <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2 xl:px-2.5 xl:py-1.5">
                   <div className="min-w-0">
-                    <CardTitle className="text-sm font-medium truncate">{surveyor.name}</CardTitle>
-                    <p className="text-xs text-muted-foreground">{surveyor.businessAttribute}</p>
+                    <CardTitle className={cn("text-sm font-medium truncate", visOf(surveyor.name) === "hide" && "line-through opacity-60", visOf(surveyor.name) === "dim" && "opacity-60")}>{surveyor.name}</CardTitle>
+                    <p className="text-xs text-muted-foreground truncate">{surveyor.businessAttribute}</p>
                   </div>
-                  <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  {visOf(surveyor.name) === "hide" ? <EyeOff className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" aria-label="已隱藏" />
+                    : <User className="h-4 w-4 text-muted-foreground flex-shrink-0 xl:hidden" />}
                 </CardHeader>
-                <CardContent className="xl:px-3 xl:pb-1.5 xl:pt-0">
+                <CardContent className="xl:px-2.5 xl:pb-1.5 xl:pt-0">
                   <div className="flex items-center justify-end gap-2 min-h-5 xl:min-h-0 flex-wrap">
                     {isEligible && (
                       isPointsMode ? (
@@ -706,7 +718,7 @@ export default function Home() {
                       ) : (
                         isNextAssignee && (
                           <Badge variant="default" className="text-[10px] px-1 py-0" data-testid={`badge-next-${surveyor.id}`}>
-                            下一位承辦
+                            下一位<span className="xl:hidden">承辦</span>
                           </Badge>
                         )
                       )

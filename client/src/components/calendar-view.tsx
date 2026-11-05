@@ -26,6 +26,8 @@ import { LeaveForm, leaveStyle, leaveBarClass } from "@/components/leave-form";
 import { applicantText } from "@/lib/receive";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 import { useWorkdays } from "@/hooks/use-workdays";
+import { useSurveyorVisibility } from "@/lib/surveyor-visibility";
+import { SurveyorVisibilityMenu } from "@/components/surveyor-visibility-menu";
 import type { WorkdayInfo } from "@shared/holidays";
 import { WorkdayEditor } from "@/components/workday-editor";
 
@@ -127,13 +129,18 @@ export function CalendarView({
     return allDays;
   }, [calendarStart, calendarEnd, hideWeekends]);
 
+  // 使用者自己設定的測量員顯示方式（隱藏的不列出；點右側卡片篩選那位時照常顯示）
+  const { visOf } = useSurveyorVisibility();
+  const shown = (name: string) => surveyorFilter === name || visOf(name) !== "hide";
+  const isDim = (name: string) => surveyorFilter !== name && visOf(name) === "dim";
+
   const filteredCases = useMemo(() => {
     return cases.filter((c) => {
       const matchesSurveyor = !surveyorFilter || surveyorFilter === "all" || c.surveyor === surveyorFilter;
       const matchesCaseType = !caseTypeFilter || caseTypeFilter === "all" || c.caseType === caseTypeFilter;
-      return matchesSurveyor && matchesCaseType;
+      return matchesSurveyor && matchesCaseType && shown(c.surveyor);
     });
-  }, [cases, surveyorFilter, caseTypeFilter]);
+  }, [cases, surveyorFilter, caseTypeFilter, visOf]);
 
   const casesByDate = useMemo(() => {
     const map = new Map<string, SurveyCase[]>();
@@ -150,8 +157,8 @@ export function CalendarView({
 
   // 篩選測量員時，請假也只顯示該測量員的
   const filteredLeaves = useMemo(
-    () => leavesList.filter((l) => !surveyorFilter || surveyorFilter === "all" || l.surveyorName === surveyorFilter),
-    [leavesList, surveyorFilter],
+    () => leavesList.filter((l) => (!surveyorFilter || surveyorFilter === "all" || l.surveyorName === surveyorFilter) && shown(l.surveyorName)),
+    [leavesList, surveyorFilter, visOf],
   );
 
   const leavesByDate = useMemo(() => {
@@ -278,6 +285,7 @@ export function CalendarView({
             <Rows3 className="h-4 w-4" />
             {compact ? "精簡模式" : "詳細模式"}
           </Button>
+          <SurveyorVisibilityMenu />
           <Button variant="outline" size="sm" onClick={() => setEditWorkdays(true)} data-testid="button-edit-workdays">
             調整工作日
           </Button>
@@ -398,6 +406,7 @@ export function CalendarView({
                   colors={surveyorColors}
                   dimmed={dimPastCases && isPastDay && !isTodayDate}
                   onOpen={() => handleDayNumberClick(day, dateKey)}
+                  isDim={isDim}
                   twoCols={hideWeekends}
                   testId={`compact-${dateKey}`}
                 />
@@ -406,7 +415,7 @@ export function CalendarView({
               {/* Cases grouped by surveyor */}
               {!compact && <div className="space-y-1 overflow-hidden max-h-[90px] xl:max-h-none xl:flex-1 xl:min-h-0 xl:overflow-y-auto thin-scroll">
                 {Object.entries(groupedBySurveyor).map(([surveyor, surveyorCases]) => (
-                  <div key={surveyor} className="space-y-0.5">
+                  <div key={surveyor} className={cn("space-y-0.5", isDim(surveyor) && "opacity-30")}>
                     <div className="text-xs font-medium text-muted-foreground truncate">
                       {surveyor}
                     </div>
@@ -467,6 +476,7 @@ export function CalendarView({
                       className={cn(
                         "pointer-events-auto text-xs px-1.5 flex items-center gap-1 overflow-hidden whitespace-nowrap text-left",
                         leaveBarClass(type),
+                        seg.group.every((x) => isDim(x.surveyorName)) && "opacity-30",
                         seg.isStart ? "ml-1 rounded-l" : "border-l-0",
                         seg.isEnd ? "mr-1 rounded-r" : "border-r-0",
                       )}
@@ -790,13 +800,14 @@ function DayBadge({ info, weekday, dim, testId }: { info: WorkdayInfo; weekday: 
 
 // 精簡模式的一天：每位有案件或請假的測量員一行，顯示各案件的時間與請假類別；點一下開當天明細
 const LEAVE_SHORT: Record<string, string> = { "休假": "休", "出差": "差", "上課": "課" };
-function CompactDay({ cases, leaves, surveyors, colors, dimmed, onOpen, twoCols, testId }: {
+function CompactDay({ cases, leaves, surveyors, colors, dimmed, onOpen, isDim, twoCols, testId }: {
   cases: SurveyCase[];
   leaves: SurveyorLeave[];
   surveyors: Surveyor[];
   colors: Record<string, string>;
   dimmed: boolean;
   onOpen: () => void;
+  isDim?: (name: string) => boolean;
   twoCols?: boolean;   // 只顯示平日（每格較寬）時，大螢幕排成兩欄
   testId: string;
 }) {
@@ -815,7 +826,7 @@ function CompactDay({ cases, leaves, surveyors, colors, dimmed, onOpen, twoCols,
             key={name}
             type="button"
             onClick={onOpen}
-            className="w-full min-w-0 flex items-center gap-1 text-xs leading-[18px] rounded px-0.5 hover:bg-muted text-left"
+            className={cn("w-full min-w-0 flex items-center gap-1 text-xs leading-[18px] rounded px-0.5 hover:bg-muted text-left", isDim?.(name) && "opacity-30")}
             title={[
               ...list.map((c) => `${c.scheduledTime} ${c.caseType} ${c.landParcel}${isPostponed(c) ? "（延期）" : ""}`),
               ...lv.map((l) => `${l.leaveType || "休假"} ${leavePeriod(l)}${l.reason ? `（${l.reason}）` : ""}`),
