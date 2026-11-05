@@ -1,14 +1,17 @@
 import { format } from "date-fns";
 import { fmtDate } from "@/lib/date-style";
 import { zhTW } from "date-fns/locale";
-import { MapPin, Calendar, Clock, User, FileText, CheckCircle, XCircle, Loader2, Edit, CalendarClock, ArrowRight, ArrowLeft } from "lucide-react";
+import { MapPin, Calendar, Clock, User, FileText, CheckCircle, XCircle, Loader2, Edit, CalendarClock, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { isPostponed, isPostponePending, subsOf, type SurveyCase } from "@shared/schema";
@@ -123,6 +126,7 @@ export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit, onPostp
               </Badge>
             )}
             {getCoordinateStatusBadge()}
+            {caseData.coordinateStatus !== "success" && caseData.coordinateStatus !== "processing" && <RefreshCoordsButton id={caseData.id} />}
           </div>
 
           {(postponed || caseData.postponedFromId) && (
@@ -250,5 +254,24 @@ export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit, onPostp
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// 座標沒取得時重新查詢（原本只在列表裡有這顆按鈕）
+function RefreshCoordsButton({ id }: { id: string }) {
+  const { toast } = useToast();
+  const m = useMutation({
+    mutationFn: async () => apiRequest("POST", `/api/cases/${id}/refresh-coordinates`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      toast({ title: "座標查詢中", description: "系統正在重新查詢座標資訊" });
+    },
+    onError: (error: Error) => toast({ title: "查詢失敗", description: error.message, variant: "destructive" }),
+  });
+  return (
+    <Button variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={() => m.mutate()} disabled={m.isPending} data-testid="button-detail-refresh-coords">
+      <RefreshCw className={`h-3 w-3 mr-1 ${m.isPending ? "animate-spin" : ""}`} />
+      重新查座標
+    </Button>
   );
 }

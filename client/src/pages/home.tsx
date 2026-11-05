@@ -23,10 +23,18 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.26.0";
+const APP_VERSION = "v2.27.0";
 const RELEASE_DATE = "2026-11-05";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.27.0",
+    date: "2026-11-05",
+    items: [
+      "「列表」分頁收成分頁列最右邊的小圖示，功能不變（全部案件排序、座標狀態）",
+      "案件詳細資料在座標沒取得時多一顆「重新查座標」，不用再進列表",
+    ],
+  },
   {
     version: "v2.26.0",
     date: "2026-11-05",
@@ -567,13 +575,13 @@ export default function Home() {
                     <LayoutGrid className="h-4 w-4 mr-2" />
                     排班表
                   </TabsTrigger>
-                  <TabsTrigger value="list" data-testid="tab-list">
-                    <List className="h-4 w-4 mr-2" />
-                    列表
-                  </TabsTrigger>
                   <TabsTrigger value="map" data-testid="tab-map">
                     <MapIcon className="h-4 w-4 mr-2" />
                     地圖
+                  </TabsTrigger>
+                  {/* 列表較少用，收成最右邊的小圖示：全部案件排序、座標狀態、重新查座標 */}
+                  <TabsTrigger value="list" className="px-2" title="列表：全部案件依案號／測量員／日期排序、看座標狀態" aria-label="列表" data-testid="tab-list">
+                    <List className="h-4 w-4" />
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
