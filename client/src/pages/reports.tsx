@@ -1,9 +1,12 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { DateInput } from "@/components/date-input";
-import { fmtDate } from "@/lib/date-style";
+import { fmtDate, getDateStyle } from "@/lib/date-style";
+import { ReportPages, downloadReportPdf, type DetailRow } from "@/components/report-pages";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { ArrowLeft, FileBarChart, Printer } from "lucide-react";
+import { ArrowLeft, Download, FileBarChart, Loader2, Printer } from "lucide-react";
 import {
   format,
   startOfMonth,
@@ -29,13 +32,13 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UNKNOWN_TOWNSHIP, getTownship } from "@/lib/land-sections";
 import { TOWNSHIPS as LAND_TOWNSHIPS } from "@shared/land-sections";
-import type { CaseTypeRecord, SurveyCase, Surveyor } from "@shared/schema";
-import { caseLabel, applicantText } from "@/lib/receive";
+import { isPostponed, subsOf, type CaseTypeRecord, type SurveyCase, type Surveyor } from "@shared/schema";
+import { applicantText } from "@/lib/receive";
 
 const UNASSIGNED = "（未指派）";
 const TOWNSHIPS = [...LAND_TOWNSHIPS, UNKNOWN_TOWNSHIP];
 
-type SectionKey = "bySurveyor" | "byCaseType" | "byTownship" | "surveyorByCaseType" | "surveyorByTownship" | "details";
+type SectionKey = "bySurveyor" | "byCaseType" | "byTownship" | "surveyorByCaseType" | "surveyorByTownship";
 
 const SECTION_OPTIONS: { key: SectionKey; label: string }[] = [
   { key: "bySurveyor", label: "依測量員統計" },
@@ -43,7 +46,6 @@ const SECTION_OPTIONS: { key: SectionKey; label: string }[] = [
   { key: "byTownship", label: "依地區統計（苑裡／通霄）" },
   { key: "surveyorByCaseType", label: "測量員 × 案件類型 交叉表" },
   { key: "surveyorByTownship", label: "測量員 × 地區 交叉表" },
-  { key: "details", label: "案件明細" },
 ];
 
 const ymd = (d: Date) => format(d, "yyyy-MM-dd");
@@ -90,9 +92,12 @@ const surveyorOf = (c: SurveyCase) => c.surveyor?.trim() || UNASSIGNED;
 
 export default function ReportsPage() {
   const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const [mode, setMode] = useState<"range" | "year">("range");
   const [initialStart, initialEnd] = getPresetRange("thisMonth");
   const [startDate, setStartDate] = useState(initialStart);
   const [endDate, setEndDate] = useState(initialEnd);
+  const [year, setYear] = useState(new Date().getFullYear());
   const [surveyorFilter, setSurveyorFilter] = useState("all");
   const [caseTypeFilter, setCaseTypeFilter] = useState("all");
   const [townshipFilter, setTownshipFilter] = useState("all");
@@ -102,26 +107,36 @@ export default function ReportsPage() {
     byTownship: true,
     surveyorByCaseType: false,
     surveyorByTownship: false,
-    details: false,
   });
+  const [pdfProgress, setPdfProgress] = useState<string | null>(null);
+  const pagesRef = useRef<HTMLDivElement>(null);
 
   const { data: cases = [], isLoading } = useQuery<SurveyCase[]>({ queryKey: ["/api/cases"] });
   const { data: surveyorsList = [] } = useQuery<Surveyor[]>({ queryKey: ["/api/surveyors"] });
   const { data: caseTypesList = [] } = useQuery<CaseTypeRecord[]>({ queryKey: ["/api/case-types"] });
 
-  const rangeInvalid = !startDate || !endDate || startDate > endDate;
+  // 年度報表：資料裡出現過的年份（加上今年），新的在前
+  const years = useMemo(() => {
+    const ys = new Set<number>([new Date().getFullYear()]);
+    cases.forEach((c) => { const y = Number(c.surveyDate?.slice(0, 4)); if (y > 1900) ys.add(y); });
+    return Array.from(ys).sort((a, b) => b - a);
+  }, [cases]);
+
+  const from = mode === "year" ? `${year}-01-01` : startDate;
+  const to = mode === "year" ? `${year}-12-31` : endDate;
+  const rangeInvalid = !from || !to || from > to;
 
   const reportCases = useMemo(() => {
     if (rangeInvalid) return [];
     return cases
-      .filter((c) => c.surveyDate >= startDate && c.surveyDate <= endDate)
+      .filter((c) => c.surveyDate >= from && c.surveyDate <= to)
       .filter((c) => surveyorFilter === "all" || surveyorOf(c) === surveyorFilter)
       .filter((c) => caseTypeFilter === "all" || c.caseType === caseTypeFilter)
       .filter((c) => townshipFilter === "all" || getTownship(c.landParcel) === townshipFilter)
       .sort((a, b) =>
         `${a.surveyDate} ${a.scheduledTime}`.localeCompare(`${b.surveyDate} ${b.scheduledTime}`),
       );
-  }, [cases, startDate, endDate, rangeInvalid, surveyorFilter, caseTypeFilter, townshipFilter]);
+  }, [cases, from, to, rangeInvalid, surveyorFilter, caseTypeFilter, townshipFilter]);
 
   const total = reportCases.length;
 
@@ -129,38 +144,31 @@ export default function ReportsPage() {
   const surveyorKeys = useMemo(() => {
     if (surveyorFilter !== "all") return [surveyorFilter];
     return orderedKeys(surveyorsList.map((s) => s.name), reportCases.map(surveyorOf));
-  }, [surveyorFilter, surveyorsList, reportCases]);
-
-  const caseTypeKeys = useMemo(() => {
-    if (caseTypeFilter !== "all") return [caseTypeFilter];
-    const used = new Set(reportCases.map((c) => c.caseType));
-    // 案件類型只列有案件的，避免一長串 0
-    return orderedKeys(caseTypesList.map((t) => t.name), used).filter((k) => used.has(k));
-  }, [caseTypeFilter, caseTypesList, reportCases]);
-
+  }, [surveyorsList, reportCases, surveyorFilter]);
+  const caseTypeKeys = useMemo(
+    () => orderedKeys(caseTypesList.map((t) => t.name), reportCases.map((c) => c.caseType)).filter((k) => reportCases.some((c) => c.caseType === k)),
+    [caseTypesList, reportCases],
+  );
   const townshipKeys = useMemo(() => {
     if (townshipFilter !== "all") return [townshipFilter];
-    const used = new Set(reportCases.map((c) => getTownship(c.landParcel)));
-    // 苑裡、通霄固定列出；「其他／未判定」只有出現時才列
-    return TOWNSHIPS.filter((t) => t !== UNKNOWN_TOWNSHIP || used.has(t));
-  }, [townshipFilter, reportCases]);
+    return TOWNSHIPS.filter((t) => t !== UNKNOWN_TOWNSHIP || reportCases.some((c) => getTownship(c.landParcel) === t));
+  }, [reportCases, townshipFilter]);
+  const monthKeys = useMemo(() => Array.from({ length: 12 }, (_, i) => `${i + 1} 月`), []);
+  const monthOf = (c: SurveyCase) => `${Number(c.surveyDate.slice(5, 7))} 月`;
 
   const bySurveyor = useMemo(() => countBy(reportCases, surveyorOf), [reportCases]);
   const byCaseType = useMemo(() => countBy(reportCases, (c) => c.caseType), [reportCases]);
   const byTownship = useMemo(() => countBy(reportCases, (c) => getTownship(c.landParcel)), [reportCases]);
-  const surveyorByCaseType = useMemo(
-    () => countBy(reportCases, (c) => `${surveyorOf(c)}\u0000${c.caseType}`),
-    [reportCases],
-  );
-  const surveyorByTownship = useMemo(
-    () => countBy(reportCases, (c) => `${surveyorOf(c)}\u0000${getTownship(c.landParcel)}`),
-    [reportCases],
-  );
+  const cross = (rk: (c: SurveyCase) => string, ck: (c: SurveyCase) => string) => countBy(reportCases, (c) => `${rk(c)}\u0000${ck(c)}`);
+  const surveyorByCaseType = useMemo(() => cross(surveyorOf, (c) => c.caseType), [reportCases]);
+  const surveyorByTownship = useMemo(() => cross(surveyorOf, (c) => getTownship(c.landParcel)), [reportCases]);
+  const monthByCaseType = useMemo(() => cross(monthOf, (c) => c.caseType), [reportCases]);
+  const monthBySurveyor = useMemo(() => cross(monthOf, surveyorOf), [reportCases]);
 
   const surveyorAttr = useMemo(() => {
-    const map = new Map<string, string>();
-    surveyorsList.forEach((s) => map.set(s.name, s.businessAttribute));
-    return map;
+    const m = new Map<string, string>();
+    surveyorsList.forEach((s) => m.set(s.name, s.businessAttribute));
+    return m;
   }, [surveyorsList]);
 
   const filterSummary = [
@@ -169,10 +177,98 @@ export default function ReportsPage() {
     townshipFilter !== "all" && `地區：${townshipFilter}`,
   ].filter(Boolean).join("　");
 
+  const yearLabel = (y: number) => (getDateStyle() === "roc" ? `${y - 1911} 年` : `${y} 年`);
+  const title = mode === "year" ? `${yearLabel(year)}度測量案件報表` : "測量案件報表";
+  const period = mode === "year" ? `統計期間：${fmtDate(from)} 至 ${fmtDate(to)}（全年度）` : `統計期間：${fmtDate(from)} 至 ${fmtDate(to)}`;
+
+  // 明細：依月份分段，連件列在主件下方
+  const detailRows = useMemo<DetailRow[]>(() => {
+    const out: DetailRow[] = [];
+    let lastM = "", no = 0;
+    const monthCount = countBy(reportCases, (c) => c.surveyDate.slice(0, 7));
+    reportCases.forEach((c) => {
+      const m = c.surveyDate.slice(0, 7);
+      if (m !== lastM) {
+        const y = Number(m.slice(0, 4));
+        out.push({ kind: "month", key: `m${m}`, label: `${getDateStyle() === "roc" ? y - 1911 : y} 年 ${Number(m.slice(5))} 月`, count: monthCount.get(m) || 0 });
+        lastM = m;
+      }
+      const p = splitParcel(c.landParcel);
+      out.push({
+        kind: "case", key: c.id, no: ++no, c,
+        date: fmtDate(c.surveyDate), time: (c.scheduledTime.match(/\d{1,2}:\d{2}/)?.[0] ?? c.scheduledTime),
+        type: c.caseType, recvDate: c.receiveDate ? fmtDate(c.receiveDate) : "", recvWord: c.receiveWord ?? "",
+        caseNo: c.caseNumber?.trim() || "（未收件）", section: p.section, lot: p.lot,
+        applicant: applicantText(c), surveyor: surveyorOf(c), postponed: isPostponed(c),
+      });
+      subsOf(c).forEach((x, i) => {
+        const q = splitParcel(x.landParcel);
+        out.push({ kind: "sub", key: `${c.id}-${i}`, type: x.caseType, caseNo: x.caseNumber, section: q.section, lot: q.lot });
+      });
+    });
+    return out;
+  }, [reportCases]);
+
+  // 統計頁：第 1 頁總計＋三張分類表並排；交叉表每頁放兩張
+  const summaryPages = useMemo(() => {
+    const tiles = (
+      <div className="grid gap-3 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+        <SummaryTile label="案件總數" value={total} />
+        {mode === "year" && <SummaryTile label="每月平均" value={Math.round((total / 12) * 10) / 10} />}
+        {townshipKeys.map((t) => <SummaryTile key={t} label={t} value={byTownship.get(t) || 0} />)}
+        <SummaryTile label="有案件的測量員" value={Array.from(bySurveyor.keys()).filter((k) => k !== UNASSIGNED).length} />
+        <SummaryTile label="連件" value={reportCases.reduce((n, c) => n + subsOf(c).length, 0)} />
+      </div>
+    );
+    const simple = [
+      sections.bySurveyor && (
+        <ReportSection key="s" title="依測量員統計">
+          <SimpleCountTable headers={["測量員", "業務屬性", "件數", "佔比"]}
+            rows={surveyorKeys.map((k) => [k, surveyorAttr.get(k) || "—", bySurveyor.get(k) || 0, percent(bySurveyor.get(k) || 0, total)])}
+            totalRow={["合計", "", total, total ? "100%" : "—"]} />
+        </ReportSection>
+      ),
+      sections.byCaseType && (
+        <ReportSection key="t" title="依案件類型統計">
+          <SimpleCountTable headers={["案件類型", "件數", "佔比"]}
+            rows={caseTypeKeys.map((k) => [k, byCaseType.get(k) || 0, percent(byCaseType.get(k) || 0, total)])}
+            totalRow={["合計", total, total ? "100%" : "—"]} />
+        </ReportSection>
+      ),
+      sections.byTownship && (
+        <ReportSection key="w" title="依地區統計">
+          <SimpleCountTable headers={["地區", "件數", "佔比"]}
+            rows={townshipKeys.map((k) => [k, byTownship.get(k) || 0, percent(byTownship.get(k) || 0, total)])}
+            totalRow={["合計", total, total ? "100%" : "—"]} />
+        </ReportSection>
+      ),
+    ].filter(Boolean);
+    const first = (
+      <div>
+        {tiles}
+        <div className="grid gap-6 items-start" style={{ gridTemplateColumns: `repeat(${Math.max(simple.length, 1)}, minmax(0, 1fr))` }}>{simple}</div>
+      </div>
+    );
+    const crosses = [
+      mode === "year" && <ReportSection key="mt" title="各月份 × 案件類型"><CrossTable rowLabel="月份" rowKeys={monthKeys} colKeys={caseTypeKeys} counts={monthByCaseType} /></ReportSection>,
+      mode === "year" && <ReportSection key="ms" title="各月份 × 測量員"><CrossTable rowLabel="月份" rowKeys={monthKeys} colKeys={surveyorKeys.filter((k) => bySurveyor.get(k))} counts={monthBySurveyor} /></ReportSection>,
+      sections.surveyorByCaseType && <ReportSection key="sc" title="測量員 × 案件類型"><CrossTable rowLabel="測量員" rowKeys={surveyorKeys} colKeys={caseTypeKeys} counts={surveyorByCaseType} /></ReportSection>,
+      sections.surveyorByTownship && <ReportSection key="sw" title="測量員 × 地區"><CrossTable rowLabel="測量員" rowKeys={surveyorKeys} colKeys={townshipKeys} counts={surveyorByTownship} /></ReportSection>,
+    ].filter(Boolean);
+    const pages: React.ReactNode[] = [first];
+    for (let i = 0; i < crosses.length; i += 2) pages.push(<div className="space-y-6">{crosses.slice(i, i + 2)}</div>);
+    return pages;
+  }, [mode, total, reportCases, sections, surveyorKeys, caseTypeKeys, townshipKeys, monthKeys, bySurveyor, byCaseType, byTownship,
+      surveyorByCaseType, surveyorByTownship, monthByCaseType, monthBySurveyor, surveyorAttr]);
+
+  const fileBase = mode === "year"
+    ? `測量案件年度報表_${getDateStyle() === "roc" ? `${year - 1911}年` : `${year}`}`
+    : `測量案件報表_${from}_${to}`;
+
   const handlePrint = () => {
     // 瀏覽器「另存為 PDF」會用 document.title 當預設檔名
     const originalTitle = document.title;
-    document.title = `測量案件報表_${startDate}_${endDate}`;
+    document.title = fileBase;
     const restore = () => {
       document.title = originalTitle;
       window.removeEventListener("afterprint", restore);
@@ -181,11 +277,26 @@ export default function ReportsPage() {
     window.print();
   };
 
+  const handlePdf = async () => {
+    if (!pagesRef.current) return;
+    try {
+      setPdfProgress("準備中…");
+      await downloadReportPdf(pagesRef.current, `${fileBase}.pdf`, (d, n) => setPdfProgress(d < n ? `產生中 ${d + 1} / ${n} 頁` : "完成"));
+      toast({ title: "已下載 PDF", description: `${fileBase}.pdf` });
+    } catch (e) {
+      toast({ title: "PDF 產生失敗", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      setPdfProgress(null);
+    }
+  };
+
   const applyPreset = (preset: string) => {
     const [s, e] = getPresetRange(preset);
     setStartDate(s);
     setEndDate(e);
   };
+
+  const busy = rangeInvalid || isLoading || !!pdfProgress;
 
   return (
     <div className="min-h-screen bg-background print:bg-white print:min-h-0">
@@ -202,9 +313,13 @@ export default function ReportsPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button onClick={handlePrint} disabled={rangeInvalid || isLoading} data-testid="button-print-report">
+              <Button onClick={handlePdf} disabled={busy} data-testid="button-download-pdf">
+                {pdfProgress ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                {pdfProgress ?? "下載 PDF"}
+              </Button>
+              <Button variant="outline" onClick={handlePrint} disabled={busy} data-testid="button-print-report">
                 <Printer className="h-4 w-4 mr-2" />
-                列印 / 另存 PDF
+                列印
               </Button>
               <ThemeToggle />
             </div>
@@ -217,37 +332,52 @@ export default function ReportsPage() {
           <CardHeader>
             <CardTitle>報表條件</CardTitle>
             <CardDescription>
-              以「測量日期」落在區間內的案件統計。設定好後按右上角「列印 / 另存 PDF」，在列印視窗的目的地選「另存為 PDF」即可存檔。
+              以「排件日期」落在期間內的案件產製，A3 橫向。按右上角「下載 PDF」直接存檔；要紙本再按「列印」（印表機紙張請選 A3、橫向）。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-2">
-              <Label>時間區間</Label>
-              <div className="flex flex-wrap items-center gap-2">
-                <DateInput
-                  value={startDate}
-                  onChange={setStartDate}
-                  className="w-44"
-                  data-testid="input-report-start"
-                />
-                <span className="text-muted-foreground">至</span>
-                <DateInput
-                  value={endDate}
-                  onChange={setEndDate}
-                  className="w-44"
-                  data-testid="input-report-end"
-                />
-                <div className="flex flex-wrap gap-1">
-                  <Button variant="outline" size="sm" onClick={() => applyPreset("thisMonth")}>本月</Button>
-                  <Button variant="outline" size="sm" onClick={() => applyPreset("lastMonth")}>上月</Button>
-                  <Button variant="outline" size="sm" onClick={() => applyPreset("quarter")}>本季</Button>
-                  <Button variant="outline" size="sm" onClick={() => applyPreset("year")}>今年</Button>
-                </div>
+              <Label>報表種類</Label>
+              <div className="inline-flex rounded-md border p-0.5">
+                {([["range", "期間報表"], ["year", "年度報表"]] as const).map(([v, label]) => (
+                  <button key={v} type="button" onClick={() => setMode(v)} data-testid={`button-mode-${v}`}
+                    className={cn("px-4 py-1.5 text-sm rounded", mode === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>
+                    {label}
+                  </button>
+                ))}
               </div>
-              {rangeInvalid && (
-                <p className="text-sm text-destructive">請選擇起訖日期，且開始日期不可晚於結束日期</p>
-              )}
             </div>
+
+            {mode === "year" ? (
+              <div className="space-y-2">
+                <Label>年度</Label>
+                <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+                  <SelectTrigger className="w-44" data-testid="select-report-year"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {years.map((y) => <SelectItem key={y} value={String(y)}>{yearLabel(y)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">年度報表另附「各月份 × 案件類型」「各月份 × 測量員」統計，明細依月份分段。</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>時間區間</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <DateInput value={startDate} onChange={setStartDate} className="w-44" data-testid="input-report-start" />
+                  <span className="text-muted-foreground">至</span>
+                  <DateInput value={endDate} onChange={setEndDate} className="w-44" data-testid="input-report-end" />
+                  <div className="flex flex-wrap gap-1">
+                    <Button variant="outline" size="sm" onClick={() => applyPreset("thisMonth")}>本月</Button>
+                    <Button variant="outline" size="sm" onClick={() => applyPreset("lastMonth")}>上月</Button>
+                    <Button variant="outline" size="sm" onClick={() => applyPreset("quarter")}>本季</Button>
+                    <Button variant="outline" size="sm" onClick={() => applyPreset("year")}>今年</Button>
+                  </div>
+                </div>
+                {rangeInvalid && (
+                  <p className="text-sm text-destructive">請選擇起訖日期，且開始日期不可晚於結束日期</p>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-2">
@@ -289,7 +419,7 @@ export default function ReportsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>報表內容</Label>
+              <Label>統計頁內容（案件明細一律附上）</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {SECTION_OPTIONS.map((opt) => (
                   <label key={opt.key} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -306,145 +436,31 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
 
-        {/* 報表本體：固定白底黑字，畫面上是預覽，列印時只印這一塊 */}
-        <div
-          className="report-sheet mx-auto max-w-4xl rounded-lg border bg-white text-neutral-900 shadow-sm p-8 print:max-w-none print:border-0 print:shadow-none print:rounded-none print:p-0"
-          data-testid="report-sheet"
-        >
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold tracking-wide">測量案件統計報表</h2>
-            <p className="mt-1 text-sm text-neutral-600">
-              統計期間：{startDate || "—"} 至 {endDate || "—"}
-            </p>
-            {filterSummary && <p className="text-sm text-neutral-600">篩選條件：{filterSummary}</p>}
-            <p className="text-xs text-neutral-500 mt-1">製表時間：{fmtDate(new Date())} {format(new Date(), "HH:mm")}</p>
-          </div>
-
-          {isLoading ? (
-            <p className="text-center text-neutral-500 py-8">載入中...</p>
-          ) : rangeInvalid ? (
-            <p className="text-center text-neutral-500 py-8">請先選擇正確的時間區間</p>
-          ) : (
-            <div className="space-y-8">
-              <ReportSection title="總計">
-                <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))" }}>
-                  <SummaryTile label="案件總數" value={total} />
-                  {townshipKeys.map((t) => (
-                    <SummaryTile key={t} label={t} value={byTownship.get(t) || 0} />
-                  ))}
-                  <SummaryTile
-                    label="有案件的測量員"
-                    value={Array.from(bySurveyor.keys()).filter((k) => k !== UNASSIGNED).length}
-                  />
-                </div>
-              </ReportSection>
-
-              {sections.bySurveyor && (
-                <ReportSection title="依測量員統計">
-                  <SimpleCountTable
-                    headers={["測量員", "業務屬性", "件數", "佔比"]}
-                    rows={surveyorKeys.map((k) => [
-                      k,
-                      surveyorAttr.get(k) || "—",
-                      bySurveyor.get(k) || 0,
-                      percent(bySurveyor.get(k) || 0, total),
-                    ])}
-                    totalRow={["合計", "", total, total ? "100%" : "—"]}
-                  />
-                </ReportSection>
-              )}
-
-              {sections.byCaseType && (
-                <ReportSection title="依案件類型統計">
-                  <SimpleCountTable
-                    headers={["案件類型", "件數", "佔比"]}
-                    rows={caseTypeKeys.map((k) => [k, byCaseType.get(k) || 0, percent(byCaseType.get(k) || 0, total)])}
-                    totalRow={["合計", total, total ? "100%" : "—"]}
-                  />
-                </ReportSection>
-              )}
-
-              {sections.byTownship && (
-                <ReportSection title="依地區統計">
-                  <SimpleCountTable
-                    headers={["地區", "件數", "佔比"]}
-                    rows={townshipKeys.map((k) => [k, byTownship.get(k) || 0, percent(byTownship.get(k) || 0, total)])}
-                    totalRow={["合計", total, total ? "100%" : "—"]}
-                  />
-                  {byTownship.get(UNKNOWN_TOWNSHIP) ? (
-                    <p className="mt-2 text-xs text-neutral-500">
-                      「{UNKNOWN_TOWNSHIP}」為地段地號無法對應到苑裡鎮或通霄鎮地段的案件。
-                    </p>
-                  ) : null}
-                </ReportSection>
-              )}
-
-              {sections.surveyorByCaseType && (
-                <ReportSection title="測量員 × 案件類型">
-                  <CrossTable
-                    rowLabel="測量員"
-                    rowKeys={surveyorKeys}
-                    colKeys={caseTypeKeys}
-                    counts={surveyorByCaseType}
-                  />
-                </ReportSection>
-              )}
-
-              {sections.surveyorByTownship && (
-                <ReportSection title="測量員 × 地區">
-                  <CrossTable
-                    rowLabel="測量員"
-                    rowKeys={surveyorKeys}
-                    colKeys={townshipKeys}
-                    counts={surveyorByTownship}
-                  />
-                </ReportSection>
-              )}
-
-              {sections.details && (
-                <ReportSection title={`案件明細（${total} 筆）`}>
-                  {total === 0 ? (
-                    <p className="text-sm text-neutral-500">此區間沒有案件</p>
-                  ) : (
-                    <table className="report-table w-full text-xs">
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>日期</th>
-                          <th>時間</th>
-                          <th>案號</th>
-                          <th>類型</th>
-                          <th>地段地號</th>
-                          <th>地區</th>
-                          <th>測量員</th>
-                          <th>申請人</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {reportCases.map((c, i) => (
-                          <tr key={c.id}>
-                            <td className="text-right">{i + 1}</td>
-                            <td className="whitespace-nowrap">{fmtDate(c.surveyDate)}</td>
-                            <td>{c.scheduledTime}</td>
-                            <td>{caseLabel(c)}</td>
-                            <td>{c.caseType}</td>
-                            <td>{c.landParcel}</td>
-                            <td className="whitespace-nowrap">{getTownship(c.landParcel)}</td>
-                            <td className="whitespace-nowrap">{surveyorOf(c)}</td>
-                            <td>{applicantText(c)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </ReportSection>
-              )}
-            </div>
-          )}
-        </div>
+        {isLoading ? (
+          <p className="text-center text-muted-foreground py-8">載入中...</p>
+        ) : rangeInvalid ? (
+          <p className="text-center text-muted-foreground py-8">請先選擇正確的時間區間</p>
+        ) : (
+          <ReportPages
+            ref={pagesRef}
+            title={title}
+            period={period}
+            filters={filterSummary}
+            summaryPages={summaryPages}
+            rows={detailRows}
+            detailTitle={total ? `案件明細（${total} 件）` : "案件明細：此期間沒有案件"}
+          />
+        )}
       </main>
     </div>
   );
+}
+
+// 「苑裡鎮田寮段571地號」→ 地段「苑裡鎮田寮段」、地號「571」
+function splitParcel(landParcel: string): { section: string; lot: string } {
+  const m = (landParcel || "").match(/^(.*段)(.*)$/);
+  if (!m) return { section: landParcel || "", lot: "" };
+  return { section: m[1], lot: m[2].replace(/地號$/, "").trim() };
 }
 
 function ReportSection({ title, children }: { title: string; children: React.ReactNode }) {

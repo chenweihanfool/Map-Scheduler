@@ -23,10 +23,20 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.27.0";
+const APP_VERSION = "v2.28.0";
 const RELEASE_DATE = "2026-11-05";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.28.0",
+    date: "2026-11-05",
+    items: [
+      "報表改為 A3 橫向，畫面上直接預覽分好的每一頁（含頁碼、製表時間）",
+      "新增「年度報表」：選年度即產製全年，另附各月份 × 案件類型、各月份 × 測量員統計，明細依月份分段",
+      "案件明細一律附上，欄位為排件日期、案件類型、收件日期、收件字、案號、地段、地號、申請人／法院、測量員；連件列在主件下方",
+      "以「下載 PDF」直接存檔為主，「列印」為輔；頁數不限，表頭每頁重複",
+    ],
+  },
   {
     version: "v2.27.0",
     date: "2026-11-05",
