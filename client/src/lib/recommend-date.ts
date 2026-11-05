@@ -29,13 +29,14 @@ export function recommendSlot(opts: {
   isWorkday: (date: string) => boolean;
   today?: Date;
   excludeId?: string;
+  after?: string;   // 只找這天（YYYY-MM-DD）之後的日子，例 延期時從原排定日期之後找
 }): SlotRecommendation | null {
-  const { surveyor, cases, leaves, isWorkday, today = new Date(), excludeId } = opts;
+  const { surveyor, cases, leaves, isWorkday, today = new Date(), excludeId, after } = opts;
   if (!surveyor) return null;
   const mine = cases.filter((c) => c.surveyor === surveyor && !isPostponed(c) && c.id !== excludeId);
-  for (let i = 1; i <= 366; i++) {
+  for (let i = 1; i <= 730; i++) {
     const date = format(addDays(today, i), "yyyy-MM-dd");
-    if (!isWorkday(date)) continue;
+    if ((after && date <= after) || !isWorkday(date)) continue;
     const hours = mine.filter((c) => c.surveyDate === date).map((c) => hourOf(c.scheduledTime) ?? 9);
     if (!hours.some((h) => h < 12) && !onLeave(leaves, surveyor, date, "08:00", "12:00")) {
       return { date, time: MORNING, afternoon: false, daysAhead: i };

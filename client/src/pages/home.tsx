@@ -24,10 +24,17 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.29.1";
+const APP_VERSION = "v2.30.0";
 const RELEASE_DATE = "2026-11-05";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.30.0",
+    date: "2026-11-05",
+    items: [
+      "延期、更改延期日期時也推薦測量員最近空檔（從原排定日期之後找，避開請假與非工作日，上午優先），按「套用」帶入日期時間",
+    ],
+  },
   {
     version: "v2.29.1",
     date: "2026-11-05",
