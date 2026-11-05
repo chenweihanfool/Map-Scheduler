@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { deleteCase, restoreCase, useUndoToast } from "@/lib/undo";
 import { fmtDate } from "@/lib/date-style";
 import { useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -160,16 +161,13 @@ export function CasesTable({ cases, isLoading, onEdit, dimPastCases }: CasesTabl
       : <ArrowDown className="h-3 w-3 ml-1" />;
   };
 
+  const undoToast = useUndoToast();
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/cases/${id}`);
-    },
-    onSuccess: () => {
+    mutationFn: async (id: string) => deleteCase(id),
+    onSuccess: (row) => {
       queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
-      toast({
-        title: "案件已刪除",
-        description: "測量案件已成功刪除",
-      });
+      if (row) undoToast("案件已刪除", `${row.caseNumber || ""} ${row.landParcel}`.trim(), () => restoreCase(row));
+      else toast({ title: "案件已刪除" });
       setDeleteId(null);
     },
     onError: (error: Error) => {

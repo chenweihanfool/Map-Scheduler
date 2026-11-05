@@ -255,6 +255,16 @@ export async function registerRoutes(
   // Update survey case
   app.patch("/api/cases/:id", async (req, res) => {
     try {
+      // 避免兩人同時編輯互相覆蓋：前端帶上開啟時的 updatedAt，若這段期間被別人改過就回 409 與目前內容
+      const expected = req.body?.expectedUpdatedAt;
+      if (expected) {
+        const current = await storage.getCase(req.params.id);
+        if (!current) return res.status(404).json({ error: "Case not found" });
+        if (current.updatedAt && new Date(current.updatedAt).getTime() !== new Date(expected).getTime()) {
+          return res.status(409).json({ error: "STALE", message: "這件案件在你編輯期間已被修改", current });
+        }
+      }
+      if (req.body && "expectedUpdatedAt" in req.body) delete req.body.expectedUpdatedAt;
       const validationResult = updateSurveyCaseSchema.safeParse(req.body);
       if (!validationResult.success) {
         return res.status(400).json({ 
@@ -290,14 +300,27 @@ export async function registerRoutes(
   // Delete survey case
   app.delete("/api/cases/:id", async (req, res) => {
     try {
+      const row = await storage.getCase(req.params.id);   // 回傳刪除前的內容，前端可「復原」
       const deleted = await storage.deleteCase(req.params.id);
       if (!deleted) {
         return res.status(404).json({ error: "Case not found" });
       }
-      res.status(204).send();
+      res.json({ deleted: row });
     } catch (error) {
       console.error("Error deleting case:", error);
       res.status(500).json({ error: "Failed to delete case" });
+    }
+  });
+
+  // 復原刪除的案件（用刪除時回傳的完整內容，保留原本的 id 與延期連結）
+  app.post("/api/cases/restore", async (req, res) => {
+    try {
+      const row = req.body?.case;
+      if (!row?.id || !row.surveyDate || !row.surveyor) return res.status(400).json({ error: "資料不完整" });
+      res.json(await storage.restoreCase(row));
+    } catch (error: any) {
+      console.error("Error restoring case:", error);
+      res.status(error?.status || 500).json({ error: error?.message || "Failed to restore case" });
     }
   });
 
@@ -636,14 +659,26 @@ export async function registerRoutes(
   // Delete leave
   app.delete("/api/leaves/:id", async (req, res) => {
     try {
+      const row = await storage.getLeave(req.params.id);
       const deleted = await storage.deleteLeave(req.params.id);
       if (!deleted) {
         return res.status(404).json({ error: "Leave not found" });
       }
-      res.json({ success: true });
+      res.json({ success: true, deleted: row });
     } catch (error) {
       console.error("Error deleting leave:", error);
       res.status(500).json({ error: "Failed to delete leave" });
+    }
+  });
+
+  app.post("/api/leaves/restore", async (req, res) => {
+    try {
+      const row = req.body?.leave;
+      if (!row?.id || !row.surveyorName || !row.startDatetime) return res.status(400).json({ error: "資料不完整" });
+      res.json(await storage.restoreLeave(row));
+    } catch (error: any) {
+      console.error("Error restoring leave:", error);
+      res.status(error?.status || 500).json({ error: error?.message || "Failed to restore leave" });
     }
   });
 

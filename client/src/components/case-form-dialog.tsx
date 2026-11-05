@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { DateInput } from "@/components/date-input";
 import { fmtDate } from "@/lib/date-style";
 import { recommendSlot, type SlotRecommendation } from "@/lib/recommend-date";
+import { deleteCase, patchCase, restoreCase, StaleError, useUndoToast } from "@/lib/undo";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -200,6 +201,10 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, defa
   const [assignmentMode, setAssignmentMode] = useState<string>("sequential");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const undoToast = useUndoToast();
+  // 存檔時發現別人已經改過：stale 是對方存的最新內容
+  const [stale, setStale] = useState<SurveyCase | null>(null);
+  const overwrite = useRef(false);   // 使用者選了「仍以我的內容儲存」：下一次存檔不比對
 
   const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
     queryKey: ["/api/surveyors"],
@@ -391,6 +396,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, defa
     if (open) {
       setIsInitialLoad(true);
       scheduleTouched.current = false;
+      overwrite.current = false;
       const initialSurveyor = isEditing 
         ? (editCase?.surveyor ?? "") 
         : (defaultSurveyor ?? "");
@@ -518,10 +524,12 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, defa
     mutationFn: async (data: FormValues) => {
       const { section, lotNumber, ...rest } = withCourtFields(data);
       const landParcel = `${section}${lotNumber}`;
-      const response = await apiRequest("PATCH", `/api/cases/${editCase?.id}`, { ...rest, landParcel, subs: subsPayload() });
-      return response;
+      // 帶上開啟時的最後修改時間；若別人在這段期間改過，會丟出 StaleError 讓使用者選擇
+      return patchCase(editCase!.id, { ...rest, landParcel, subs: subsPayload() }, overwrite.current ? null : editCase?.updatedAt);
     },
     onSuccess: () => {
+      setStale(null);
+      overwrite.current = false;
       queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
       toast({
         title: "案件已更新",
@@ -531,6 +539,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, defa
       onOpenChange(false);
     },
     onError: (error: Error) => {
+      if (error instanceof StaleError) { setStale(error.current); return; }
       toast({
         title: "更新失敗",
         description: error.message,
@@ -540,15 +549,11 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, defa
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("DELETE", `/api/cases/${editCase?.id}`);
-    },
-    onSuccess: () => {
+    mutationFn: async () => deleteCase(editCase!.id),
+    onSuccess: (row) => {
       queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
-      toast({
-        title: "案件已刪除",
-        description: "測量案件已成功刪除",
-      });
+      if (row) undoToast("案件已刪除", `${caseLabel(row)} ${row.landParcel}`, () => restoreCase(row));
+      else toast({ title: "案件已刪除" });
       setConfirmDeleteOpen(false);
       form.reset();
       onOpenChange(false);
@@ -1206,6 +1211,41 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, defa
       </DialogContent>
 
       {workdayAlert}
+
+      <AlertDialog open={!!stale} onOpenChange={(o) => { if (!o) setStale(null); }}>
+        <AlertDialogContent data-testid="stale-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>這件案件剛被其他人修改過</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>你開啟之後，有人先存了新的內容。要怎麼處理？</p>
+                {stale && (
+                  <div className="rounded border bg-muted p-2 text-xs space-y-0.5">
+                    <div>對方存的：{fmtDate(stale.surveyDate)} {stale.scheduledTime}・{stale.surveyor}</div>
+                    <div>{stale.caseType}・{stale.landParcel}{stale.owner ? `・${stale.owner}` : ""}</div>
+                    {stale.notes && <div>備註：{stale.notes}</div>}
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => { queryClient.invalidateQueries({ queryKey: ["/api/cases"] }); setStale(null); onOpenChange(false); }}
+              data-testid="button-stale-discard"
+            >
+              放棄我的修改
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { overwrite.current = true; setStale(null); form.handleSubmit(onSubmit)(); }}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              data-testid="button-stale-overwrite"
+            >
+              仍以我的內容儲存
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <AlertDialogContent>
