@@ -16,7 +16,7 @@ import {
   subMonths
 } from "date-fns";
 import { zhTW } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Plus, UserX, Maximize2, Pencil, CalendarDays, Sparkles, Briefcase } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, UserX, Maximize2, Pencil, CalendarDays, Sparkles, Briefcase, Rows3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -82,6 +82,9 @@ export function CalendarView({
   const today = startOfDay(new Date());
   const [detailDay, setDetailDay] = useState<{ date: Date; dateKey: string } | null>(null);
   const [hideWeekends, setHideWeekends] = useState(true);
+  // 精簡模式：格子裡每位測量員一行（件數與時段），請假標在名字旁，不畫橫條；會記住
+  const [compact, setCompactState] = useState(() => { try { return localStorage.getItem("ms-cal-compact") === "1"; } catch { return false; } });
+  const setCompact = (v: boolean) => { setCompactState(v); try { localStorage.setItem("ms-cal-compact", v ? "1" : "0"); } catch { /* 只影響這次 */ } };
   const [editWorkdays, setEditWorkdays] = useState(false);
   const { info: dayInfo } = useWorkdays();
   // 開關與內容分開：關閉時保留內容，淡出動畫期間標題不會變空白
@@ -264,6 +267,17 @@ export function CalendarView({
             <CalendarDays className="h-4 w-4" />
             {hideWeekends ? "不顯示六日" : "顯示全週"}
           </Button>
+          <Button
+            variant={compact ? "default" : "outline"}
+            size="sm"
+            onClick={() => setCompact(!compact)}
+            data-testid="button-toggle-compact"
+            className="gap-1.5"
+            title="格子裡每位測量員只顯示一行：件數與時段，請假標在名字旁；點一下看當天明細"
+          >
+            <Rows3 className="h-4 w-4" />
+            {compact ? "精簡模式" : "詳細模式"}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setEditWorkdays(true)} data-testid="button-edit-workdays">
             調整工作日
           </Button>
@@ -314,7 +328,7 @@ export function CalendarView({
                 <span className="text-sm text-muted-foreground/50 w-7 h-7 flex items-center justify-center">
                   {format(day, "d")}
                 </span>
-                {dayLanes[j] > 0 && <div style={{ height: dayLanes[j] * (BAR_H + BAR_GAP) }} />}
+                {!compact && dayLanes[j] > 0 && <div style={{ height: dayLanes[j] * (BAR_H + BAR_GAP) }} />}
               </div>
             );
           }
@@ -374,10 +388,23 @@ export function CalendarView({
               </div>
 
               {/* 預留請假橫條的位置（橫條畫在整週的上層） */}
-              {dayLanes[j] > 0 && <div style={{ height: dayLanes[j] * (BAR_H + BAR_GAP) }} />}
+              {!compact && dayLanes[j] > 0 && <div style={{ height: dayLanes[j] * (BAR_H + BAR_GAP) }} />}
+
+              {compact && (
+                <CompactDay
+                  cases={dayCases}
+                  leaves={leavesByDate.get(dateKey) || []}
+                  surveyors={surveyorsList}
+                  colors={surveyorColors}
+                  dimmed={dimPastCases && isPastDay && !isTodayDate}
+                  onOpen={() => handleDayNumberClick(day, dateKey)}
+                  twoCols={hideWeekends}
+                  testId={`compact-${dateKey}`}
+                />
+              )}
 
               {/* Cases grouped by surveyor */}
-              <div className="space-y-1 overflow-hidden max-h-[90px] xl:max-h-none xl:flex-1 xl:min-h-0 xl:overflow-y-auto thin-scroll">
+              {!compact && <div className="space-y-1 overflow-hidden max-h-[90px] xl:max-h-none xl:flex-1 xl:min-h-0 xl:overflow-y-auto thin-scroll">
                 {Object.entries(groupedBySurveyor).map(([surveyor, surveyorCases]) => (
                   <div key={surveyor} className="space-y-0.5">
                     <div className="text-xs font-medium text-muted-foreground truncate">
@@ -394,7 +421,7 @@ export function CalendarView({
                     ))}
                   </div>
                 ))}
-              </div>
+              </div>}
 
               {/* Expand hint or empty hint */}
               {dayCases.length > 0 ? (
@@ -421,7 +448,7 @@ export function CalendarView({
               })}
             </div>
 
-            {lanes > 0 && (
+            {!compact && lanes > 0 && (
               <div
                 className={cn("absolute inset-x-0 top-[34px] grid gap-x-px pointer-events-none", hideWeekends ? "grid-cols-5" : "grid-cols-7")}
                 style={{ gridAutoRows: `${BAR_H}px`, rowGap: `${BAR_GAP}px` }}
@@ -758,5 +785,59 @@ function DayBadge({ info, weekday, dim, testId }: { info: WorkdayInfo; weekday: 
       <span className="truncate">{info.label.replace(/（.*）$/, "")}</span>
       {/（補假）$/.test(info.label) && <span className="text-[10px] font-normal opacity-90 shrink-0" title="補假">補</span>}
     </span>
+  );
+}
+
+// 精簡模式的一天：每位有案件或請假的測量員一行，顯示各案件的時間與請假類別；點一下開當天明細
+const LEAVE_SHORT: Record<string, string> = { "休假": "休", "出差": "差", "上課": "課" };
+function CompactDay({ cases, leaves, surveyors, colors, dimmed, onOpen, twoCols, testId }: {
+  cases: SurveyCase[];
+  leaves: SurveyorLeave[];
+  surveyors: Surveyor[];
+  colors: Record<string, string>;
+  dimmed: boolean;
+  onOpen: () => void;
+  twoCols?: boolean;   // 只顯示平日（每格較寬）時，大螢幕排成兩欄
+  testId: string;
+}) {
+  const names = surveyors.map((s) => s.name);
+  const who = Array.from(new Set([...cases.map((c) => c.surveyor), ...leaves.map((l) => l.surveyorName)]))
+    .sort((a, b) => (names.indexOf(a) + 1 || 999) - (names.indexOf(b) + 1 || 999));
+  if (!who.length) return null;
+  return (
+    <div className={cn("grid grid-cols-1 gap-x-2 content-start overflow-hidden xl:flex-1 xl:min-h-0 xl:overflow-y-auto thin-scroll", twoCols && "2xl:grid-cols-2", dimmed && "opacity-40")} data-testid={testId}>
+      {who.map((name) => {
+        const list = cases.filter((c) => c.surveyor === name).sort((a, b) => (a.scheduledTime || "").localeCompare(b.scheduledTime || ""));
+        const active = list.filter((c) => !isPostponed(c));
+        const lv = leaves.filter((l) => l.surveyorName === name);
+        return (
+          <button
+            key={name}
+            type="button"
+            onClick={onOpen}
+            className="w-full min-w-0 flex items-center gap-1 text-xs leading-[18px] rounded px-0.5 hover:bg-muted text-left"
+            title={[
+              ...list.map((c) => `${c.scheduledTime} ${c.caseType} ${c.landParcel}${isPostponed(c) ? "（延期）" : ""}`),
+              ...lv.map((l) => `${l.leaveType || "休假"} ${leavePeriod(l)}${l.reason ? `（${l.reason}）` : ""}`),
+            ].join("\n")}
+          >
+            <span className={cn("w-2.5 h-2.5 rounded-sm border shrink-0", colors[name])} />
+            <span className="font-medium truncate shrink min-w-0">{name}</span>
+            {lv.map((l) => (
+              <span key={l.id} className={cn("shrink-0 rounded px-1 text-[10px] font-semibold leading-4", leaveBarClass(l.leaveType))}>
+                {LEAVE_SHORT[l.leaveType || "休假"] || "休"}
+              </span>
+            ))}
+            <span className="ml-auto flex gap-0.5 shrink-0">
+              {active.map((c) => (
+                <span key={c.id} className={cn("rounded border px-1 text-[10px] tabular-nums leading-4", colors[name])}>
+                  {(c.scheduledTime.match(/(\d{1,2}):(\d{2})/)?.[0] ?? c.scheduledTime).replace(/^0/, "")}
+                </span>
+              ))}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }

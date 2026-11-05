@@ -23,10 +23,18 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.25.0";
+const APP_VERSION = "v2.26.0";
 const RELEASE_DATE = "2026-11-05";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.26.0",
+    date: "2026-11-05",
+    items: [
+      "月曆新增「精簡模式」切換（會記住）：每位測量員一行，顯示各案件時間，休假／出差／上課以「休」「差」「課」標在名字旁，不再畫橫條",
+      "精簡模式點任一行看當天明細，滑鼠移上去可看當天的案件與請假內容",
+    ],
+  },
   {
     version: "v2.25.0",
     date: "2026-11-05",
