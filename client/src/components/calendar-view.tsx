@@ -672,11 +672,13 @@ export function CaseChip({
   colorClass,
   dimmed,
   onClick,
+  wrap,
 }: {
   surveyCase: SurveyCase;
   colorClass: string;
   dimmed: boolean;
   onClick: () => void;
+  wrap?: boolean;   // 排班表：內容換行完整顯示，不截斷
 }) {
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties | null>(null);
 
@@ -705,7 +707,8 @@ export function CaseChip({
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         className={cn(
-          "w-full text-left text-xs px-1.5 py-0.5 rounded border truncate hover-elevate",
+          "w-full text-left text-xs px-1.5 py-0.5 rounded border hover-elevate",
+          wrap ? "whitespace-normal break-words leading-snug" : "truncate",
           colorClass,
           dimmed && "opacity-40",
           isPostponed(c) && !isPostponePending(c) && "line-through opacity-50",

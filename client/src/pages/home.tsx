@@ -24,10 +24,17 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.29.0";
+const APP_VERSION = "v2.29.1";
 const RELEASE_DATE = "2026-11-05";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.29.1",
+    date: "2026-11-05",
+    items: [
+      "排班表每位測量員的上午、下午各自依內容自動長高，同一排對齊；案件與請假文字換行完整顯示，不再截斷或在格子內捲動；整張表放不下時照常在表格內捲動",
+    ],
+  },
   {
     version: "v2.29.0",
     date: "2026-11-05",
