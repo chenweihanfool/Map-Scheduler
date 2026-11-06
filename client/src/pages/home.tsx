@@ -25,10 +25,19 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.33.1";
+const APP_VERSION = "v2.34.0";
 const RELEASE_DATE = "2026-11-06";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.34.0",
+    date: "2026-11-06",
+    items: [
+      "全新手機版：第一次打開選「我是誰」，首頁只看自己的排程（今天、本週、30 天件數與下一件），依日期分段的卡片式清單",
+      "手機版底部分頁：我的、月曆（小圓點看哪天有案件／請假）、大家（兩週內所有人）、更多（切換我是誰、新增案件、請假、電腦版畫面）",
+      "點案件從下方滑出詳細資料，可一鍵導航到案件位置、打電話給代理人或編輯；新增案件與請假收在右下角「＋」",
+    ],
+  },
   {
     version: "v2.33.1",
     date: "2026-11-06",
@@ -812,6 +821,16 @@ export default function Home() {
           <p className="xl:inline">國土測繪圖資服務雲 (NLSC) | 苗栗縣政府地理資訊系統</p>
         </div>
       </main>
+
+      {/* 手機上切到電腦版時，可以切回手機版 */}
+      <button
+        type="button"
+        onClick={() => { try { localStorage.removeItem("ms-view"); } catch { /* */ } location.reload(); }}
+        className="md:hidden fixed bottom-4 right-4 z-40 rounded-full bg-primary text-primary-foreground px-4 py-2 text-sm shadow-lg"
+        data-testid="button-mobile-view"
+      >
+        手機版
+      </button>
 
       <Dialog open={shortcutsOpen} onOpenChange={setShortcutsOpen}>
         <DialogContent className="sm:max-w-sm" data-testid="shortcuts-dialog">
