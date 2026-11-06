@@ -364,7 +364,7 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
 
       <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onCancel}>取消</Button>
-        <Button type="button" onClick={handleSubmit} disabled={saveMutation.isPending} data-testid="button-submit-leave">
+        <Button type="button" onClick={handleSubmit} disabled={saveMutation.isPending} className="bg-red-600 hover:bg-red-700 text-white border-red-700" data-testid="button-submit-leave">
           {saveMutation.isPending ? "處理中..." : editingLeave ? `儲存${formData.leaveType}` : `登記${formData.leaveType}`}
         </Button>
       </div>

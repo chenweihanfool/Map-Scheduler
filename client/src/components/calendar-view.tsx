@@ -267,7 +267,7 @@ export function CalendarView({
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           <Button
             variant={hideWeekends ? "default" : "outline"}
             size="sm"
