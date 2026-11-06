@@ -25,10 +25,18 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.32.0";
+const APP_VERSION = "v2.33.0";
 const RELEASE_DATE = "2026-11-06";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.33.0",
+    date: "2026-11-06",
+    items: [
+      "月曆每週依內容自動長高，案件與請假完整顯示、文字換行不截斷，不再被請假橫條擋住",
+      "寬螢幕時月曆放不下就在月曆框內捲動，星期列固定在上方；精簡模式同樣依內容長高",
+    ],
+  },
   {
     version: "v2.32.0",
     date: "2026-11-06",
