@@ -299,9 +299,10 @@ export function CalendarView({
         </div>
       </div>
 
-      {/* Calendar Grid：每週一列，請假橫條疊在該週上層 */}
-      <div className="flex flex-col gap-px bg-border rounded-lg overflow-hidden xl:flex-1 xl:min-h-0">
-        <div className={cn("grid gap-px", hideWeekends ? "grid-cols-5" : "grid-cols-7")}>
+      {/* Calendar Grid：每週一列，請假橫條疊在該週上層。
+          每週依內容自動長高、完整顯示；寬螢幕時放不下就在月曆框內捲動，星期列固定在上方 */}
+      <div className="flex flex-col gap-px bg-border rounded-lg overflow-hidden xl:overflow-y-auto xl:flex-1 xl:min-h-0 thin-scroll">
+        <div className={cn("grid gap-px sticky top-0 z-30", hideWeekends ? "grid-cols-5" : "grid-cols-7")}>
           {weekdayLabels.map((day) => (
             <div
               key={day}
@@ -315,10 +316,9 @@ export function CalendarView({
         {weeks.map(({ days: weekDays, segments, lanes, dayLanes }) => (
           <div
             key={format(weekDays[0], "yyyy-MM-dd")}
-            // 寬螢幕填滿視窗時每週等高，案件放不下就在格子內捲動
-            className="relative xl:flex-1 xl:basis-0 xl:min-h-0 xl:overflow-hidden"
+            className="relative shrink-0"
           >
-            <div className={cn("grid gap-px xl:h-full xl:grid-rows-[minmax(0,1fr)]", hideWeekends ? "grid-cols-5" : "grid-cols-7")}>
+            <div className={cn("grid gap-px", hideWeekends ? "grid-cols-5" : "grid-cols-7")}>
               {weekDays.map((day, j) => {
           const dateKey = format(day, "yyyy-MM-dd");
           const dayCases = casesByDate.get(dateKey) || [];
@@ -334,7 +334,7 @@ export function CalendarView({
             return (
               <div
                 key={dateKey}
-                className="bg-muted/30 min-h-[120px] 2xl:min-h-[150px] xl:min-h-0 p-1"
+                className="bg-muted/30 min-h-[110px] p-1"
                 data-testid={`calendar-day-${dateKey}`}
               >
                 <span className="text-sm text-muted-foreground/50 w-7 h-7 flex items-center justify-center">
@@ -355,7 +355,7 @@ export function CalendarView({
             <div
               key={dateKey}
               className={cn(
-                "bg-background min-h-[120px] 2xl:min-h-[150px] xl:min-h-0 p-1 relative group xl:flex xl:flex-col xl:overflow-hidden",
+                "bg-background min-h-[110px] p-1 relative group flex flex-col",
                 !wd.workday && isCurrentMonth && "bg-[repeating-linear-gradient(135deg,rgb(239_68_68/0.06)_0_6px,transparent_6px_12px)]",
                 !isCurrentMonth && "bg-muted/50",
                 dimPastCases && isPastDay && !isTodayDate && "bg-muted/30",
@@ -425,7 +425,7 @@ export function CalendarView({
               )}
 
               {/* Cases grouped by surveyor */}
-              {!compact && <div className="space-y-1 overflow-hidden max-h-[90px] xl:max-h-none xl:flex-1 xl:min-h-0 xl:overflow-y-auto thin-scroll">
+              {!compact && <div className="space-y-1">
                 {Object.entries(groupedBySurveyor).map(([surveyor, surveyorCases]) => (
                   <div key={surveyor} className={cn("space-y-0.5", isDim(surveyor) && "opacity-30")}>
                     <div className="text-xs font-medium text-muted-foreground truncate">
@@ -439,6 +439,7 @@ export function CalendarView({
                         dimmed={dimPastCases && isPastDay && !isTodayDate}
                         onClick={() => onCaseClick(c)}
                         draggable
+                        wrap
                       />
                     ))}
                   </div>
@@ -837,7 +838,7 @@ function CompactDay({ cases, leaves, surveyors, colors, dimmed, onOpen, isDim, t
     .sort((a, b) => (names.indexOf(a) + 1 || 999) - (names.indexOf(b) + 1 || 999));
   if (!who.length) return null;
   return (
-    <div className={cn("grid grid-cols-1 gap-x-2 content-start overflow-hidden xl:flex-1 xl:min-h-0 xl:overflow-y-auto thin-scroll", twoCols && "2xl:grid-cols-2", dimmed && "opacity-40")} data-testid={testId}>
+    <div className={cn("grid grid-cols-1 gap-x-2 content-start", twoCols && "2xl:grid-cols-2", dimmed && "opacity-40")} data-testid={testId}>
       {who.map((name) => {
         const list = cases.filter((c) => c.surveyor === name).sort((a, b) => (a.scheduledTime || "").localeCompare(b.scheduledTime || ""));
         const active = list.filter((c) => !isPostponed(c));
