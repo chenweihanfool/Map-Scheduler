@@ -25,10 +25,19 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.31.0";
-const RELEASE_DATE = "2026-11-05";
+const APP_VERSION = "v2.32.0";
+const RELEASE_DATE = "2026-11-06";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.32.0",
+    date: "2026-11-06",
+    items: [
+      "首頁「新增案件」（藍）旁新增紅色「請假」按鈕，直接登記休假／出差／上課；快捷鍵 L",
+      "新增案件與請假分開：視窗內不再切換，請假視窗的送出按鈕也改成紅色",
+      "手機版頁首與月曆工具列不再超出畫面",
+    ],
+  },
   {
     version: "v2.31.0",
     date: "2026-11-05",
@@ -403,6 +412,8 @@ export default function Home() {
   });
   const setActiveView = (v: View) => { setActiveViewState(v); try { localStorage.setItem("ms-home-view", v); } catch { /* 只影響這次 */ } };
   const { visOf } = useSurveyorVisibility();
+  const [formKind, setFormKind] = useState<"case" | "leave">("case");
+  const openLeave = () => { setEditCase(null); setSelectedDate(undefined); setFormKind("leave"); setIsFormOpen(true); };
   const [slotDefaults, setSlotDefaults] = useState<{ surveyor: string; time: string } | null>(null);
   
   const [surveyorFilter, setSurveyorFilter] = useState("");
@@ -493,7 +504,8 @@ export default function Home() {
         else setCurrentMonth((m) => (step === 0 ? new Date() : addMonths(m, step)));
       };
       const views: Record<string, View> = { "1": "calendar", "2": "board", "3": "map", "4": "list" };
-      if (k === "n" || k === "N") { setEditCase(null); setSelectedDate(undefined); setIsFormOpen(true); }
+      if (k === "n" || k === "N") { setEditCase(null); setSelectedDate(undefined); setFormKind("case"); setIsFormOpen(true); }
+      else if (k === "l" || k === "L") openLeave();
       else if (k === "ArrowLeft") nav(-1);
       else if (k === "ArrowRight") nav(1);
       else if (k === "t" || k === "T") nav(0);
@@ -517,6 +529,7 @@ export default function Home() {
     setIsFormOpen(open);
     if (!open) {
       setSlotDefaults(null);
+      setFormKind("case");
       setEditCase(null);
       setSelectedDate(undefined);
     }
@@ -556,7 +569,7 @@ export default function Home() {
     <div className="min-h-screen bg-background xl:h-screen xl:min-h-[720px] xl:flex xl:flex-col">
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-4 h-16">
+          <div className="flex items-center justify-between gap-2 sm:gap-4 h-16">
             <div className="flex items-center gap-3 shrink-0">
               <MapIcon className="h-6 w-6 text-primary" />
               <div className="hidden sm:flex items-center gap-2">
@@ -571,28 +584,33 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            <div className="flex-1 max-w-md mx-4">
+            <div className="flex-1 min-w-0 max-w-md sm:mx-4">
               <CaseSearch onCaseSelect={handleCaseDetail} />
             </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <Button onClick={() => { setEditCase(null); setSelectedDate(undefined); setIsFormOpen(true); }} data-testid="button-add-case" title="新增案件（快捷鍵 N）">
-                <Plus className="h-4 w-4 mr-2" />
+            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+              <Button onClick={() => { setEditCase(null); setSelectedDate(undefined); setIsFormOpen(true); }} data-testid="button-add-case" title="新增案件（快捷鍵 N）" className="px-3 sm:px-4">
+                <Plus className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">新增案件</span>
                 <kbd className="hidden lg:inline ml-2 rounded border border-white/40 px-1 text-[10px] font-mono leading-4 opacity-80">N</kbd>
               </Button>
+              <Button onClick={openLeave} className="bg-red-600 hover:bg-red-700 text-white border-red-700 px-3 sm:px-4" data-testid="button-add-leave" title="登記休假／出差／上課（快捷鍵 L）">
+                <CalendarOff className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">請假</span>
+                <kbd className="hidden lg:inline ml-2 rounded border border-white/40 px-1 text-[10px] font-mono leading-4 opacity-80">L</kbd>
+              </Button>
               <Link href="/reports">
-                <Button variant="outline" data-testid="button-reports">
+                <Button variant="outline" className="px-3 sm:px-4" data-testid="button-reports">
                   <FileBarChart className="h-4 w-4 sm:mr-2" />
                   <span className="hidden sm:inline">報表</span>
                 </Button>
               </Link>
               <Link href="/leaves">
-                <Button variant="outline" data-testid="button-leaves">
+                <Button variant="outline" className="px-3 sm:px-4" data-testid="button-leaves">
                   <CalendarOff className="h-4 w-4 sm:mr-2" />
                   <span className="hidden sm:inline">請假管理</span>
                 </Button>
               </Link>
-              <Button variant="ghost" size="icon" onClick={() => setShortcutsOpen(true)} title="快捷鍵（?）" aria-label="快捷鍵" data-testid="button-shortcuts">
+              <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => setShortcutsOpen(true)} title="快捷鍵（?）" aria-label="快捷鍵" data-testid="button-shortcuts">
                 <Keyboard className="h-4 w-4" />
               </Button>
               <Link href="/settings">
@@ -786,6 +804,7 @@ export default function Home() {
           <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
             {([
               ["N", "新增案件"],
+              ["L", "登記請假（休假／出差／上課）"],
               ["← / →", activeView === "board" ? "上一週／下一週" : "上一個月／下一個月"],
               ["T", "回到今天"],
               ["1 / 2 / 3 / 4", "月曆／排班表／地圖／列表"],
@@ -809,6 +828,7 @@ export default function Home() {
         defaultDate={selectedDate}
         defaultSurveyor={slotDefaults?.surveyor}
         defaultTime={slotDefaults?.time}
+        initialKind={formKind}
         onPostpone={(c) => setPostponeCase(c)}
         onOpenCase={openCaseById}
         onChangePostponeDate={(c) => setChangeDateCase(c)}

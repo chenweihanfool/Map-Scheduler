@@ -93,6 +93,7 @@ interface CaseFormDialogProps {
   defaultDate?: Date;
   defaultSurveyor?: string;   // 從排班表點空格新增：預先帶入測量員與時段
   defaultTime?: string;
+  initialKind?: "case" | "leave";   // 首頁「請假」按鈕直接開請假
   onPostpone?: (c: SurveyCase) => void;
   onOpenCase?: (id: string) => void;
   onChangePostponeDate?: (c: SurveyCase) => void;
@@ -161,16 +162,16 @@ interface SurveyorRecommendation {
   reasons: string[];
 }
 
-export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, defaultSurveyor, defaultTime, onPostpone, onOpenCase, onChangePostponeDate, onCancelPostpone }: CaseFormDialogProps) {
+export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, defaultSurveyor, defaultTime, initialKind, onPostpone, onOpenCase, onChangePostponeDate, onCancelPostpone }: CaseFormDialogProps) {
   const { toast } = useToast();
   const isEditing = !!editCase;
   const { info: dayInfo } = useWorkdays();
   const { guard: guardWorkday, alert: workdayAlert } = useNonWorkdayGuard();
-  // 新增時可切換「測量案件」或「休假／出差／上課」（比照測量案件排程）；編輯案件時固定為測量案件
+  // 新增案件或登記請假（首頁兩顆按鈕分別開啟）；編輯案件時固定為測量案件
   const [kind, setKind] = useState<"case" | "leave">("case");
   useEffect(() => {
-    if (open) setKind("case");
-  }, [open]);
+    if (open) setKind(initialKind ?? "case");
+  }, [open, initialKind]);
   const isLeave = !isEditing && kind === "leave";
   // 連件：子件的案號、類型、地段、地號（其餘欄位與主件共用）
   type SubRow = { caseNumber: string; caseType: string; section: string; lotNumber: string };
@@ -607,7 +608,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, defa
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold flex items-center gap-2">
-            {isLeave ? <CalendarOff className="h-5 w-5 text-primary" /> : <MapPin className="h-5 w-5 text-primary" />}
+            {isLeave ? <CalendarOff className="h-5 w-5 text-red-600 dark:text-red-400" /> : <MapPin className="h-5 w-5 text-primary" />}
             {isEditing ? "編輯測量案件" : isLeave ? "登記休假／出差／上課" : "新增測量案件"}
           </DialogTitle>
           <DialogDescription>
@@ -619,27 +620,6 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, defa
             }
           </DialogDescription>
         </DialogHeader>
-
-        {!isEditing && (
-          <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-muted" role="tablist" data-testid="seg-form-kind">
-            {([["case", "測量案件"], ["leave", "休假／出差／上課"]] as const).map(([k, label]) => (
-              <button
-                key={k}
-                type="button"
-                role="tab"
-                aria-selected={kind === k}
-                onClick={() => setKind(k)}
-                className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                  kind === k ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-                )}
-                data-testid={`button-kind-${k}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
 
         {isEditing && editCase && (isPostponed(editCase) || editCase.postponedFromId) && (
           <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2 text-sm flex flex-wrap gap-x-4 gap-y-1" data-testid="form-postpone-info">
