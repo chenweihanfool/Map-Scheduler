@@ -25,10 +25,17 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.33.0";
+const APP_VERSION = "v2.33.1";
 const RELEASE_DATE = "2026-11-06";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.33.1",
+    date: "2026-11-06",
+    items: [
+      "加到手機桌面：新的藍色地圖圖示、桌面名稱「排程」，從桌面打開時全螢幕、不顯示網址列；瀏覽器分頁圖示一併更新",
+    ],
+  },
   {
     version: "v2.33.0",
     date: "2026-11-06",
