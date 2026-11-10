@@ -57,9 +57,12 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
-      refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      // 多人共用的排程：切回頁面時、以及開著時每 3 分鐘自動更新，才看得到別人的新增與改期。
+      // 伺服器有 ETag，資料沒變時只回 304，流量很小
+      refetchInterval: 3 * 60 * 1000,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+      staleTime: 30 * 1000,
       retry: false,
     },
     mutations: {

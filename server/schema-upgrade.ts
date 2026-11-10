@@ -138,6 +138,32 @@ export async function upgradeCaseUpdatedAt(): Promise<void> {
   }
 }
 
+// v2.35.0：排件時間統一成 HH:MM。舊版從月曆格子按「＋」新增會存成「上午 09:00」，
+// 造成同日排序錯誤、同步到測量案件排程時認不得時間。可重複執行，沒有這種資料時不做事
+export function normalizeTime(t: string | null): string | null {
+  if (!t || !/[午]/.test(t)) return t;
+  const m = t.match(/(\d{1,2}):(\d{2})/);
+  if (!m) return t;
+  let h = Number(m[1]);
+  if (/下午|晚上/.test(t) && h < 12) h += 12;
+  if (/上午|早上/.test(t) && h === 12) h = 0;
+  return `${String(h).padStart(2, "0")}:${m[2]}`;
+}
+export async function upgradeTimeFormat(): Promise<void> {
+  try {
+    for (const col of ["scheduled_time", "postponed_to_time", "postponed_from_time"]) {
+      const { rows } = await pool.query(`SELECT id, ${col} AS t FROM mapscheduler.survey_cases WHERE ${col} LIKE '%午%'`);
+      for (const r of rows) {
+        const fixed = normalizeTime(r.t);
+        if (fixed && fixed !== r.t) await pool.query(`UPDATE mapscheduler.survey_cases SET ${col} = $1 WHERE id = $2`, [fixed, r.id]);
+      }
+      if (rows.length) console.log(`upgradeTimeFormat: ${col} 修正 ${rows.length} 筆`);
+    }
+  } catch (error) {
+    console.error("upgradeTimeFormat failed:", error);
+  }
+}
+
 export async function upgradePostponeFields(): Promise<void> {
   try {
     await pool.query("ALTER TABLE mapscheduler.survey_cases ADD COLUMN IF NOT EXISTS subs jsonb");   // v2.17.0 連件

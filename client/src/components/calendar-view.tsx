@@ -146,6 +146,18 @@ export function CalendarView({
     });
   }, [cases, surveyorFilter, caseTypeFilter, visOf]);
 
+  // 每天的排件量（判斷空檔用）：套用測量員／類型篩選，但被「測量員顯示」隱藏的人照樣算
+  const loadByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    cases.forEach((c) => {
+      if (isPostponed(c)) return;
+      if (surveyorFilter && surveyorFilter !== "all" && c.surveyor !== surveyorFilter) return;
+      if (caseTypeFilter && caseTypeFilter !== "all" && c.caseType !== caseTypeFilter) return;
+      map.set(c.surveyDate, (map.get(c.surveyDate) || 0) + 1);
+    });
+    return map;
+  }, [cases, surveyorFilter, caseTypeFilter]);
+
   const casesByDate = useMemo(() => {
     const map = new Map<string, SurveyCase[]>();
     filteredCases.forEach((c) => {
@@ -325,7 +337,7 @@ export function CalendarView({
           const isCurrentMonth = isSameMonth(day, currentMonth);
           const isTodayDate = isToday(day);
           const dayOfWeek = day.getDay();
-          const hasVacancy = dayCases.filter((c) => !isPostponed(c)).length < MAX_CASES_PER_DAY;   // 延期的原案件不算排件量
+          const hasVacancy = (loadByDate.get(dateKey) || 0) < MAX_CASES_PER_DAY;   // 延期的原案件不算排件量；不受「測量員顯示」隱藏影響
           const wd = dayInfo(dateKey);
           const isWeekend = !wd.workday;   // 週末、國定假日、手動調整的休假都不排件（補班日照常）
           const isPastDay = isBefore(startOfDay(day), today);

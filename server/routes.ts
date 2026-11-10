@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { normalizeTime } from "./schema-upgrade";
 import { z } from "zod";
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
@@ -178,8 +179,19 @@ export async function registerRoutes(
 
   // Create new survey case
   // 延期（body：reason、date 可留空、time）；沒給日期時只標延期，之後再呼叫一次即可排新日期
+  // 避免兩人同時編輯互相覆蓋：前端帶上開啟時的 updatedAt，若這段期間被別人改過回傳目前內容（呼叫端回 409）
+  const staleCheck = async (id: string, body: any): Promise<SurveyCase | null> => {
+    const expected = body?.expectedUpdatedAt;
+    if (body && "expectedUpdatedAt" in body) delete body.expectedUpdatedAt;
+    if (!expected) return null;
+    const current = await storage.getCase(id);
+    return current?.updatedAt && new Date(current.updatedAt).getTime() !== new Date(expected).getTime() ? current : null;
+  };
+
   app.post("/api/cases/:id/postpone", async (req, res) => {
     try {
+      const stale = await staleCheck(req.params.id, req.body);
+      if (stale) return res.status(409).json({ error: "STALE", message: "這件案件在你編輯期間已被修改", current: stale });
       const parsed = postponeSchema.safeParse(req.body ?? {});
       if (!parsed.success) return res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() });
       const { reason, date, time } = parsed.data;
@@ -220,6 +232,7 @@ export async function registerRoutes(
       // Add coordinates to the case data before saving (null if not found)
       const caseDataWithCoords = {
         ...validationResult.data,
+        scheduledTime: normalizeTime(validationResult.data.scheduledTime) ?? validationResult.data.scheduledTime,   // 一律存 HH:MM
         longitude: coordinates?.longitude ?? null,
         latitude: coordinates?.latitude ?? null,
       };
@@ -255,16 +268,8 @@ export async function registerRoutes(
   // Update survey case
   app.patch("/api/cases/:id", async (req, res) => {
     try {
-      // 避免兩人同時編輯互相覆蓋：前端帶上開啟時的 updatedAt，若這段期間被別人改過就回 409 與目前內容
-      const expected = req.body?.expectedUpdatedAt;
-      if (expected) {
-        const current = await storage.getCase(req.params.id);
-        if (!current) return res.status(404).json({ error: "Case not found" });
-        if (current.updatedAt && new Date(current.updatedAt).getTime() !== new Date(expected).getTime()) {
-          return res.status(409).json({ error: "STALE", message: "這件案件在你編輯期間已被修改", current });
-        }
-      }
-      if (req.body && "expectedUpdatedAt" in req.body) delete req.body.expectedUpdatedAt;
+      const stale = await staleCheck(req.params.id, req.body);
+      if (stale) return res.status(409).json({ error: "STALE", message: "這件案件在你編輯期間已被修改", current: stale });
       const validationResult = updateSurveyCaseSchema.safeParse(req.body);
       if (!validationResult.success) {
         return res.status(400).json({ 
@@ -273,6 +278,7 @@ export async function registerRoutes(
         });
       }
 
+      if (validationResult.data.scheduledTime) validationResult.data.scheduledTime = normalizeTime(validationResult.data.scheduledTime) ?? validationResult.data.scheduledTime;
       const surveyCase = await storage.updateCase(req.params.id, validationResult.data);
       if (!surveyCase) {
         return res.status(404).json({ error: "Case not found" });

@@ -228,10 +228,19 @@ export function CaseDetailDialog({ open, onOpenChange, caseData, onEdit, onPostp
               <div className="flex items-start gap-3">
                 <MapPin className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium">座標 (TWD97)</p>
+                  <p className="text-sm font-medium">座標（經緯度 WGS84）</p>
                   <p className="text-sm text-muted-foreground font-mono">
-                    E {caseData.longitude?.toFixed(2)} / N {caseData.latitude?.toFixed(2)}
+                    {caseData.latitude?.toFixed(6)}, {caseData.longitude?.toFixed(6)}
                   </p>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${caseData.latitude},${caseData.longitude}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-primary hover:underline"
+                    data-testid="link-google-maps"
+                  >
+                    在 Google 地圖開啟
+                  </a>
                   {caseData.coordinateSource && (
                     <p className="text-xs text-muted-foreground">
                       來源: {caseData.coordinateSource === "nlsc" ? "NLSC 國土測繪中心" : "苗栗縣 GIS"}

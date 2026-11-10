@@ -416,7 +416,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, defa
         scheduledTime = suggested.timeSlot;
       } else if (!isEditing && defaultDate && !scheduledTime) {
         // When clicking a calendar day, default to morning slot
-        scheduledTime = defaultTime ?? "上午 09:00";
+        scheduledTime = defaultTime ?? "09:00";   // 時間欄是 HH:MM 格式，舊版帶「上午 09:00」會顯示成空白
       }
       
       setSubRows(subsOf(editCase ?? {}).map((x) => {
