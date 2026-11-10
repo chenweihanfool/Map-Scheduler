@@ -152,10 +152,10 @@ export class DatabaseStorage implements IStorage {
       if (orig.postponedToId) throw Object.assign(new Error("這件已經延期到其他日期"), { status: 409 });
       const reasonValue = reason.trim() || orig.postponeReason || null;
       if (!date) {
-        const [original] = await tx.update(surveyCases).set({ status: POSTPONED, postponeReason: reasonValue }).where(eq(surveyCases.id, id)).returning();
+        const [original] = await tx.update(surveyCases).set({ status: POSTPONED, postponeReason: reasonValue, updatedAt: new Date() }).where(eq(surveyCases.id, id)).returning();
         return { original };
       }
-      const { id: _id, createdAt: _c, ...rest } = orig;
+      const { id: _id, createdAt: _c, updatedAt: _u, ...rest } = orig;
       const [copy] = await tx.insert(surveyCases).values({
         ...rest,
         surveyDate: date,
@@ -175,6 +175,7 @@ export class DatabaseStorage implements IStorage {
         postponedToId: copy.id,
         postponedToDate: copy.surveyDate,
         postponedToTime: copy.scheduledTime,
+        updatedAt: new Date(),
       }).where(eq(surveyCases.id, id)).returning();
       return { original, copy };
     });
@@ -194,7 +195,7 @@ export class DatabaseStorage implements IStorage {
         if (copy) await tx.delete(surveyCases).where(eq(surveyCases.id, copy.id));
       }
       const [updated] = await tx.update(surveyCases).set({
-        status: null, postponeReason: null, postponedToId: null, postponedToDate: null, postponedToTime: null,
+        status: null, postponeReason: null, postponedToId: null, postponedToDate: null, postponedToTime: null, updatedAt: new Date(),
       }).where(eq(surveyCases.id, orig.id)).returning();
       return updated;
     });

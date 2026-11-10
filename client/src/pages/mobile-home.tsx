@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { addDays, addMonths, endOfMonth, format, startOfMonth, startOfWeek, isSameMonth } from "date-fns";
 import {
   CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Monitor, MoreHorizontal, Navigation, Pencil,
-  Phone, Plus, RefreshCw, Users, CalendarOff, UserRound, Check, MapPin,
+  Phone, Plus, RefreshCw, Users, CalendarOff, UserRound, Check, MapPin, CalendarClock,
 } from "lucide-react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 import { CaseFormDialog } from "@/components/case-form-dialog";
+import { PostponeDialog, ChangePostponeDateDialog, useCancelPostpone } from "@/components/postpone-dialog";
 import { useWorkdays } from "@/hooks/use-workdays";
 import { surveyorColorKey, COLOR_STYLES } from "@/lib/surveyor-colors";
 import { fmtDate } from "@/lib/date-style";
@@ -40,12 +41,17 @@ export default function MobileHome() {
   const [detail, setDetail] = useState<SurveyCase | null>(null);
   const [leaveDetail, setLeaveDetail] = useState<SurveyorLeave | null>(null);
   const [form, setForm] = useState<{ open: boolean; edit?: SurveyCase | null; kind?: "case" | "leave" }>({ open: false });
-  const [fab, setFab] = useState(false);
+  const [fab, setFab] = useState(false);   // 右上角「＋」的選單
+  const [postponeCase, setPostponeCase] = useState<SurveyCase | null>(null);
+  const [changeDateCase, setChangeDateCase] = useState<SurveyCase | null>(null);
+  const cancelPostpone = useCancelPostpone();
+  const [pull, setPull] = useState(0);     // 下拉重新整理：目前拉了多少 px
+  const pullStart = useRef<number | null>(null);
   const [month, setMonth] = useState(new Date());
   const today = iso(new Date());
   const [pickDay, setPickDay] = useState(today);
 
-  const { data: cases = [], isFetching, refetch } = useQuery<SurveyCase[]>({ queryKey: ["/api/cases"] });
+  const { data: cases = [], isFetching, refetch, dataUpdatedAt } = useQuery<SurveyCase[]>({ queryKey: ["/api/cases"] });
   const { data: surveyors = [] } = useQuery<Surveyor[]>({ queryKey: ["/api/surveyors"] });
   const { data: leaves = [] } = useQuery<SurveyorLeave[]>({ queryKey: ["/api/leaves"] });
   const { data: agents = [] } = useQuery<Agent[]>({ queryKey: ["/api/agents"] });
@@ -89,7 +95,18 @@ export default function MobileHome() {
 
   if (!me) return <PickMe surveyors={surveyors} onPick={setMe} />;
 
-  const openEdit = (c: SurveyCase) => { setDetail(null); setForm({ open: true, edit: c }); };
+  const latest = (c: SurveyCase) => cases.find((x) => x.id === c.id) ?? c;   // 背景更新後用最新內容
+  const openEdit = (c: SurveyCase) => { setDetail(null); setForm({ open: true, edit: latest(c) }); };
+  const openById = (id: string) => { const c = cases.find((x) => x.id === id); if (c) { setForm({ open: false }); setDetail(c); } };
+
+  // 下拉重新整理（頁面在最上方時往下拉超過 64px 放開）
+  const onTouchStart = (e: React.TouchEvent) => { pullStart.current = window.scrollY <= 0 ? e.touches[0].clientY : null; };
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (pullStart.current == null) return;
+    const d = e.touches[0].clientY - pullStart.current;
+    setPull(d > 0 && window.scrollY <= 0 ? Math.min(96, d * 0.5) : 0);
+  };
+  const onTouchEnd = () => { if (pull >= 64) refresh(); setPull(0); pullStart.current = null; };
   const agentOf = (c: SurveyCase) => agents.find((a) => a.name === c.agent?.trim());
 
   const CaseCard = ({ c, showWho }: { c: SurveyCase; showWho?: boolean }) => {
@@ -143,12 +160,28 @@ export default function MobileHome() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground" style={{ paddingBottom: "calc(76px + env(safe-area-inset-bottom))" }}>
+    <div
+      className="min-h-[100dvh] bg-background text-foreground"
+      style={{ paddingBottom: "calc(76px + env(safe-area-inset-bottom))" }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      {pull > 0 && (
+        <div className="fixed inset-x-0 z-40 flex justify-center pointer-events-none" style={{ top: `calc(env(safe-area-inset-top) + ${pull - 8}px)` }} data-testid="m-pull">
+          <div className="rounded-full bg-card shadow-md ring-1 ring-black/10 px-3 py-1.5 text-xs flex items-center gap-1.5">
+            <RefreshCw className="h-3.5 w-3.5" style={{ transform: `rotate(${pull * 4}deg)` }} />{pull >= 64 ? "放開更新" : "下拉更新"}
+          </div>
+        </div>
+      )}
       {/* 頂部 */}
       <header className="sticky top-0 z-20 bg-background/85 backdrop-blur border-b border-border/50" style={{ paddingTop: "env(safe-area-inset-top)" }}>
         <div className="h-[60px] px-4 flex items-center gap-3">
           <div className="min-w-0 flex-1">
-            <div className="text-xs text-muted-foreground">{fmtDate(new Date(), { weekday: true })}</div>
+            <div className="text-xs text-muted-foreground">
+              {fmtDate(new Date(), { weekday: true })}
+              {dataUpdatedAt > 0 && <span className="ml-2 opacity-70" data-testid="m-updated">更新於 {format(dataUpdatedAt, "HH:mm")}</span>}
+            </div>
             <div className="text-lg font-bold leading-tight truncate">
               {tab === "mine" ? (who ? `${who} 的排程` : "所有人的排程") : tab === "month" ? "月曆" : tab === "all" ? "大家的排程" : "更多"}
             </div>
@@ -156,6 +189,21 @@ export default function MobileHome() {
           <button type="button" onClick={refresh} className="h-10 w-10 rounded-full grid place-items-center hover:bg-muted" aria-label="重新整理" data-testid="m-refresh">
             <RefreshCw className={cn("h-5 w-5", isFetching && "animate-spin")} />
           </button>
+          {/* 新增是次要功能：收在右上角，不擋住清單 */}
+          <div className="relative">
+            <button type="button" onClick={() => setFab(!fab)} className="h-10 w-10 rounded-full grid place-items-center bg-primary text-primary-foreground" aria-label="新增" data-testid="m-fab">
+              <Plus className={cn("h-5 w-5 transition-transform", fab && "rotate-45")} />
+            </button>
+            {fab && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setFab(false)} />
+                <div className="absolute right-0 top-12 z-40 w-40 rounded-2xl bg-popover text-popover-foreground shadow-xl ring-1 ring-black/10 dark:ring-white/10 overflow-hidden" data-testid="m-add-menu">
+                  <button type="button" onClick={() => { setFab(false); setForm({ open: true, kind: "case" }); }} className="w-full flex items-center gap-2.5 px-4 py-3 text-sm active:bg-muted"><ClipboardList className="h-4 w-4 text-primary" />新增案件</button>
+                  <button type="button" onClick={() => { setFab(false); setForm({ open: true, kind: "leave" }); }} className="w-full flex items-center gap-2.5 px-4 py-3 text-sm border-t border-border/60 active:bg-muted"><CalendarOff className="h-4 w-4 text-red-600" />請假</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -237,21 +285,6 @@ export default function MobileHome() {
         )}
       </main>
 
-      {/* 新增（次要功能）：浮動按鈕 */}
-      {tab !== "more" && (
-        <div className="fixed right-4 z-30" style={{ bottom: "calc(88px + env(safe-area-inset-bottom))" }}>
-          {fab && (
-            <div className="mb-2 flex flex-col items-end gap-2">
-              <button type="button" onClick={() => { setFab(false); setForm({ open: true, kind: "leave" }); }} className="rounded-full bg-red-600 text-white px-4 py-2.5 text-sm font-medium shadow-lg flex items-center gap-2"><CalendarOff className="h-4 w-4" />請假</button>
-              <button type="button" onClick={() => { setFab(false); setForm({ open: true, kind: "case" }); }} className="rounded-full bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium shadow-lg flex items-center gap-2"><ClipboardList className="h-4 w-4" />新增案件</button>
-            </div>
-          )}
-          <button type="button" onClick={() => setFab(!fab)} className="ml-auto h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-xl shadow-blue-500/30 grid place-items-center" aria-label="新增" data-testid="m-fab">
-            <Plus className={cn("h-6 w-6 transition-transform", fab && "rotate-45")} />
-          </button>
-        </div>
-      )}
-
       {/* 底部分頁 */}
       <nav className="fixed bottom-0 inset-x-0 z-30 bg-background/90 backdrop-blur border-t border-border/60" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="grid grid-cols-4 h-16">
@@ -284,7 +317,7 @@ export default function MobileHome() {
                 {isPostponed(detail) && (<><dt className="text-muted-foreground">延期</dt><dd>{detail.postponeReason || "（未填理由）"}{detail.postponedToDate ? `・改到 ${fmtDate(detail.postponedToDate)} ${detail.postponedToTime}` : "・尚未排日期"}</dd></>)}
                 {detail.notes && (<><dt className="text-muted-foreground">備註</dt><dd className="whitespace-pre-wrap">{detail.notes}</dd></>)}
               </dl>
-              <div className="mt-5 grid grid-cols-3 gap-2">
+              <div className="mt-5 grid grid-cols-2 gap-2">
                 {detail.latitude && detail.longitude ? (
                   <a href={`https://www.google.com/maps/dir/?api=1&destination=${detail.latitude},${detail.longitude}`} target="_blank" rel="noreferrer" className="rounded-2xl bg-primary text-primary-foreground py-3 flex flex-col items-center gap-1 text-sm font-medium">
                     <Navigation className="h-5 w-5" />導航
@@ -295,6 +328,18 @@ export default function MobileHome() {
                 {(() => { const a = agentOf(detail), tel = a?.mobile || a?.tel; return tel ? (
                   <a href={`tel:${tel.replace(/[^\d+#]/g, "")}`} className="rounded-2xl bg-emerald-600 text-white py-3 flex flex-col items-center gap-1 text-sm font-medium"><Phone className="h-5 w-5" />打給代理人</a>
                 ) : <div className="rounded-2xl bg-muted text-muted-foreground py-3 flex flex-col items-center gap-1 text-sm"><Phone className="h-5 w-5" />無電話</div>; })()}
+                {/* 延期：一般案件與「延期未排日期」可延期；延期後的新案件改成「更改延期日期」 */}
+                {!isPostponed(detail) && detail.postponedFromId ? (
+                  <button type="button" onClick={() => { const c = latest(detail); setDetail(null); setChangeDateCase(c); }} className="rounded-2xl bg-amber-500 text-white py-3 flex flex-col items-center gap-1 text-sm font-medium" data-testid="m-change-pp">
+                    <CalendarClock className="h-5 w-5" />更改延期日期
+                  </button>
+                ) : !isPostponed(detail) || isPostponePending(detail) ? (
+                  <button type="button" onClick={() => { const c = latest(detail); setDetail(null); setPostponeCase(c); }} className="rounded-2xl bg-amber-500 text-white py-3 flex flex-col items-center gap-1 text-sm font-medium" data-testid="m-postpone">
+                    <CalendarClock className="h-5 w-5" />{isPostponePending(detail) ? "排定延期日期" : "延期"}
+                  </button>
+                ) : (
+                  <div className="rounded-2xl bg-muted text-muted-foreground py-3 flex flex-col items-center gap-1 text-sm"><CalendarClock className="h-5 w-5" />已延期</div>
+                )}
                 <button type="button" onClick={() => openEdit(detail)} className="rounded-2xl bg-muted py-3 flex flex-col items-center gap-1 text-sm font-medium" data-testid="m-edit">
                   <Pencil className="h-5 w-5" />編輯
                 </button>
@@ -324,7 +369,13 @@ export default function MobileHome() {
         editCase={form.edit ?? null}
         initialKind={form.kind}
         defaultSurveyor={!form.edit && form.kind !== "leave" && who ? who : undefined}
+        onPostpone={(c) => setPostponeCase(c)}
+        onOpenCase={openById}
+        onChangePostponeDate={(c) => setChangeDateCase(c)}
+        onCancelPostpone={(c) => cancelPostpone.mutate(c.id)}
       />
+      <PostponeDialog open={!!postponeCase} onOpenChange={(o) => !o && setPostponeCase(null)} caseData={postponeCase} />
+      <ChangePostponeDateDialog open={!!changeDateCase} onOpenChange={(o) => !o && setChangeDateCase(null)} caseData={changeDateCase} />
     </div>
   );
 }

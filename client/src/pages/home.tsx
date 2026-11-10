@@ -25,10 +25,22 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.34.0";
-const RELEASE_DATE = "2026-11-06";
+const APP_VERSION = "v2.35.0";
+const RELEASE_DATE = "2026-11-10";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.35.0",
+    date: "2026-11-10",
+    items: [
+      "畫面會自動更新：切回頁面、網路恢復時，以及開著時每 3 分鐘重新讀取，別人的新增與改期不用重新整理就看得到；手機版可下拉更新並顯示更新時間",
+      "修正：在月曆格子按「＋」新增案件時時間欄空白、存成「上午 09:00」；既有這種格式的案件自動改成「09:00」，之後一律存 HH:MM",
+      "手機版可以延期：案件詳細資料新增「延期／排定延期日期／更改延期日期」，編輯視窗也有延期、取消延期",
+      "手機版「＋」移到右上角，不再擋住清單；提示訊息改在畫面下方，不蓋住標題",
+      "修正：案件詳細資料的座標標示（實際為經緯度，顯示到小數 6 位，並可直接在 Google 地圖開啟）",
+      "修正：「僅顯示空白時段」不再受「測量員顯示」隱藏的影響；延期、更改延期日期也會檢查是否被其他人改過",
+    ],
+  },
   {
     version: "v2.34.0",
     date: "2026-11-06",

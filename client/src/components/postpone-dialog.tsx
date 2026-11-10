@@ -21,6 +21,7 @@ import { caseLabel } from "@/lib/receive";
 import { useNonWorkdayGuard } from "@/components/nonworkday-alert";
 import { useWorkdays } from "@/hooks/use-workdays";
 import { recommendSlot } from "@/lib/recommend-date";
+import { patchCase, StaleError } from "@/lib/undo";
 import { POSTPONE_REASONS, isPostponePending, type SurveyCase, type SurveyorLeave } from "@shared/schema";
 
 interface PostponeDialogProps {
@@ -81,7 +82,7 @@ export function PostponeDialog({ open, onOpenChange, caseData, onDone }: Postpon
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/cases/${caseData!.id}/postpone`, { reason, date, time });
+      const res = await apiRequest("POST", `/api/cases/${caseData!.id}/postpone`, { reason, date, time, expectedUpdatedAt: caseData!.updatedAt ?? undefined });
       return res.json() as Promise<{ original: SurveyCase; copy?: SurveyCase }>;
     },
     onSuccess: (result) => {
@@ -93,7 +94,10 @@ export function PostponeDialog({ open, onOpenChange, caseData, onDone }: Postpon
       onOpenChange(false);
       onDone?.(result);
     },
-    onError: (error: Error) => toast({ title: "延期失敗", description: error.message, variant: "destructive" }),
+    onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });   // 可能是被別人改過，先更新成最新內容
+      toast({ title: "延期失敗", description: error.message, variant: "destructive" });
+    },
   });
 
   if (!caseData) return null;
@@ -206,13 +210,16 @@ export function ChangePostponeDateDialog({ open, onOpenChange, caseData }: Chang
     setTime(t ? `${t[1].padStart(2, "0")}:${t[2]}` : "");
   }, [open, caseData]);
   const mutation = useMutation({
-    mutationFn: async () => apiRequest("PATCH", `/api/cases/${caseData!.id}`, { surveyDate: date, scheduledTime: time || caseData!.scheduledTime }),
+    mutationFn: async () => patchCase(caseData!.id, { surveyDate: date, scheduledTime: time || caseData!.scheduledTime }, caseData!.updatedAt),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
       toast({ title: `延期日期已改為 ${fmtDate(date)} ${time}` });
       onOpenChange(false);
     },
-    onError: (error: Error) => toast({ title: "更改失敗", description: error.message, variant: "destructive" }),
+    onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      toast({ title: "更改失敗", description: error instanceof StaleError ? "這件剛被其他人修改過，畫面已更新，請重新開啟再改" : error.message, variant: "destructive" });
+    },
   });
   if (!caseData) return null;
   return (
