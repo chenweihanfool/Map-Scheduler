@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { useToday, useOnDayChange } from "@/lib/use-today";
 import { useQuery } from "@tanstack/react-query";
-import { addDays, format, isToday, startOfWeek } from "date-fns";
+import { addDays, format, startOfWeek } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,11 @@ const halfOf = (c: SurveyCase): Half => ((hourOf(c.scheduledTime) ?? 9) < 12 ? "
 // 一次看一或兩週，方便看出誰哪天哪個時段有空
 export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick, onAdd }: ScheduleBoardProps) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  // 換日後進入新的一週時，原本停在「本週」的排班表跟著換到新的一週
+  useOnDayChange((now, prev) => {
+    const wk = (d: string) => format(startOfWeek(new Date(`${d}T00:00:00`), { weekStartsOn: 1 }), "yyyy-MM-dd");
+    setWeekStart((w) => (format(w, "yyyy-MM-dd") === wk(prev) ? new Date(`${wk(now)}T00:00:00`) : w));
+  });
   const [span, setSpan] = useState<1 | 2>(readSpan);
   const { info: dayInfo } = useWorkdays();
   // 拖曳改期：拖到別的日期、上下午或別位測量員；同一半天內移動時保留原時間
@@ -96,7 +102,7 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
   const leaveAt = (surveyor: string, date: string, h: (typeof HALVES)[number]) =>
     leaves.filter((l) => l.surveyorName === surveyor && l.startDatetime < `${date} ${h.to}` && l.endDatetime > `${date} ${h.from}`);
 
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = useToday();
   const countOf = (date: string, half: Half) =>
     rows.reduce((n, { s }) => n + (slots.get(`${s.name}|${date}|${half}`) || []).filter((c) => !isPostponed(c)).length, 0);
   const rangeCount = (name: string) =>
@@ -152,15 +158,15 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
                 key={k}
                 className={cn(
                   "bg-muted px-1.5 py-1 text-center sticky top-0 z-10",
-                  isToday(d) && "bg-sky-100 dark:bg-sky-950",
+                  (k === today) && "bg-sky-100 dark:bg-sky-950",
                   weekBreak && "border-l-4 border-l-border",
                 )}
               >
-                <div className={cn("text-sm font-semibold tabular-nums", !w.workday && "text-red-600 dark:text-red-400", isToday(d) && "text-primary")}>
+                <div className={cn("text-sm font-semibold tabular-nums", !w.workday && "text-red-600 dark:text-red-400", (k === today) && "text-primary")}>
                   {format(d, "M/d")}（{WEEK[d.getDay()]}）
                 </div>
                 <div className="text-[11px] leading-4 h-4 truncate text-red-600 dark:text-red-400">
-                  {w.label || (isToday(d) ? <span className="text-primary font-medium">今天</span> : "")}
+                  {w.label || ((k === today) ? <span className="text-primary font-medium">今天</span> : "")}
                 </div>
               </div>
             );
@@ -193,7 +199,7 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
                       className={cn(
                         "relative group bg-background px-1 py-0.5 space-y-0.5",
                         !w.workday && "bg-[repeating-linear-gradient(135deg,rgb(239_68_68/0.06)_0_6px,transparent_6px_12px)]",
-                        isToday(d) && "bg-sky-50 dark:bg-sky-950/60",
+                        (k === today) && "bg-sky-50 dark:bg-sky-950/60",
                         weekBreak && "border-l-4 border-l-border",
                         hi === 1 && "-mt-px border-t border-dashed border-border",   // 上下午之間用虛線，測量員之間是實線
                         dimRow(s.name) && "[&>*]:opacity-30",

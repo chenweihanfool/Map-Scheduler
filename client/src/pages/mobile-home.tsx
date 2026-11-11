@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useToday, useOnDayChange } from "@/lib/use-today";
 import { useQuery } from "@tanstack/react-query";
 import { addDays, addMonths, endOfMonth, format, startOfMonth, startOfWeek, isSameMonth } from "date-fns";
 import {
@@ -48,7 +49,12 @@ export default function MobileHome() {
   const [pull, setPull] = useState(0);     // 下拉重新整理：目前拉了多少 px
   const pullStart = useRef<number | null>(null);
   const [month, setMonth] = useState(new Date());
-  const today = iso(new Date());
+  const today = useToday();   // 換日時跟著更新（清單、摘要都重算）
+  useOnDayChange((now, prev) => {
+    setMonth((m) => (iso(m).slice(0, 7) === prev.slice(0, 7) ? new Date(`${now}T00:00:00`) : m));
+    setPickDay((d) => (d === prev ? now : d));
+  });
+  const base = new Date(`${today}T00:00:00`);
   const [pickDay, setPickDay] = useState(today);
 
   const { data: cases = [], isFetching, refetch, dataUpdatedAt } = useQuery<SurveyCase[]>({ queryKey: ["/api/cases"] });
@@ -76,14 +82,14 @@ export default function MobileHome() {
   const upcoming = useMemo(() => {
     const out: { date: string; items: Item[] }[] = [];
     for (let i = 0; i < 60; i++) {
-      const d = iso(addDays(new Date(), i)), items = itemsOn(d, who);
+      const d = iso(addDays(base, i)), items = itemsOn(d, who);
       if (items.length || i === 0) out.push({ date: d, items });
     }
     return out;
-  }, [cases, leaves, who]);
+  }, [cases, leaves, who, today]);
 
   const nextCase = upcoming.flatMap((d) => d.items).find((x) => x.kind === "case" && !isPostponed(x.c) && (x.c.surveyDate > today || timeOf(x.c.scheduledTime) >= format(new Date(), "HH:mm"))) as { kind: "case"; c: SurveyCase } | undefined;
-  const weekEnd = iso(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 6));
+  const weekEnd = iso(addDays(startOfWeek(base, { weekStartsOn: 1 }), 6));
   const countBetween = (a: string, b: string) => cases.filter((c) => (!who || c.surveyor === who) && !isPostponed(c) && c.surveyDate >= a && c.surveyDate <= b).length;
 
   // 月曆：每天用小圓點表示件數，請假標紅
@@ -215,7 +221,7 @@ export default function MobileHome() {
               <div className="flex gap-6">
                 <div><div className="text-3xl font-bold tabular-nums">{countBetween(today, today)}</div><div className="text-xs text-white/80">今天</div></div>
                 <div><div className="text-3xl font-bold tabular-nums">{countBetween(today, weekEnd)}</div><div className="text-xs text-white/80">本週剩下</div></div>
-                <div><div className="text-3xl font-bold tabular-nums">{countBetween(today, iso(addDays(new Date(), 29)))}</div><div className="text-xs text-white/80">30 天內</div></div>
+                <div><div className="text-3xl font-bold tabular-nums">{countBetween(today, iso(addDays(base, 29)))}</div><div className="text-xs text-white/80">30 天內</div></div>
               </div>
               {nextCase && (
                 <button type="button" onClick={() => setDetail(nextCase.c)} className="mt-4 w-full text-left rounded-2xl bg-white/15 p-3 backdrop-blur">
@@ -259,7 +265,7 @@ export default function MobileHome() {
         )}
 
         {tab === "all" && (
-          upcoming.length ? Array.from({ length: 14 }, (_, i) => iso(addDays(new Date(), i))).map((d) => {
+          upcoming.length ? Array.from({ length: 14 }, (_, i) => iso(addDays(base, i))).map((d) => {
             const items = itemsOn(d, "");
             return items.length || d === today ? <DayBlock key={d} date={d} items={items} showWho /> : null;
           }) : null
