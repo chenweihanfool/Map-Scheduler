@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, Fragment } from "react";
-import { addMonths } from "date-fns";
+import { useToday, useOnDayChange } from "@/lib/use-today";
+import { addMonths, format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Map as MapIcon, Calendar as CalendarIcon, List, Settings, User, CalendarOff, Sparkles, FileBarChart, LayoutGrid, EyeOff, Keyboard } from "lucide-react";
 import { Link } from "wouter";
@@ -25,10 +26,18 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.35.0";
-const RELEASE_DATE = "2026-11-10";
+const APP_VERSION = "v2.35.1";
+const RELEASE_DATE = "2026-11-11";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.35.1",
+    date: "2026-11-11",
+    items: [
+      "修正：頁面開著過夜、或電腦休眠到隔天時「今天」不會換日。現在每 30 秒檢查一次，電腦喚醒、切回頁面時也立刻檢查",
+      "換日後月曆、排班表、手機版的「今天」標示一起更新；原本停在本週的排班表會換到新的一週，停在本月的月曆跨月時會換到新月份",
+    ],
+  },
   {
     version: "v2.35.0",
     date: "2026-11-10",
@@ -441,6 +450,10 @@ export default function Home() {
   const [editCase, setEditCase] = useState<SurveyCase | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  // 跨月時，原本停在「這個月」的月曆跟著換到新的月份（停在其他月份就不動）
+  useOnDayChange((now, prev) => {
+    setCurrentMonth((m) => (format(m, "yyyy-MM") === prev.slice(0, 7) ? new Date(`${now}T00:00:00`) : m));
+  });
   type View = "calendar" | "board" | "list" | "map";
   // 記住上次看的分頁（月曆、排班表、列表、地圖）
   const [activeView, setActiveViewState] = useState<View>(() => {

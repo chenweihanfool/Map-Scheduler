@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useToday, useOnDayChange } from "@/lib/use-today";
 import { fmtDate, fmtDateTime, fmtMonth } from "@/lib/date-style";
 import { useQuery } from "@tanstack/react-query";
 import { 
@@ -9,7 +10,7 @@ import {
   isSameMonth, 
   startOfWeek,
   endOfWeek,
-  isToday,
+
   isBefore,
   startOfDay,
   addMonths,
@@ -82,7 +83,8 @@ export function CalendarView({
   showVacantOnly,
   dimPastCases,
 }: CalendarViewProps) {
-  const today = startOfDay(new Date());
+  const todayIso = useToday();   // 換日時跟著更新
+  const today = startOfDay(new Date(`${todayIso}T00:00:00`));
   const [detailDay, setDetailDay] = useState<{ date: Date; dateKey: string } | null>(null);
   const [hideWeekends, setHideWeekends] = useState(true);
   // 拖曳改期：把案件拖到別的日期（時間不變）；dropKey 是目前滑過的那一格
@@ -335,7 +337,7 @@ export function CalendarView({
           const dateKey = format(day, "yyyy-MM-dd");
           const dayCases = casesByDate.get(dateKey) || [];
           const isCurrentMonth = isSameMonth(day, currentMonth);
-          const isTodayDate = isToday(day);
+          const isTodayDate = dateKey === todayIso;
           const dayOfWeek = day.getDay();
           const hasVacancy = (loadByDate.get(dateKey) || 0) < MAX_CASES_PER_DAY;   // 延期的原案件不算排件量；不受「測量員顯示」隱藏影響
           const wd = dayInfo(dateKey);
