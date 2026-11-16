@@ -233,6 +233,37 @@ export const surveyorLeaves = pgTable("surveyor_leaves", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// 助理（不參與排件）：大多固定搭配一位測量員（surveyorId），少數為非固定，哪位測量員的助理都請假時可以支援
+export const assistants = pgTable("assistants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  surveyorId: varchar("surveyor_id"), // 固定搭配的測量員；空白為非固定助理
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertAssistantSchema = createInsertSchema(assistants).omit({ id: true, createdAt: true }).extend({
+  name: z.string().trim().min(1, "請輸入姓名").max(20),
+  surveyorId: z.string().nullable().optional(),
+});
+export const updateAssistantSchema = insertAssistantSchema.partial();
+export type Assistant = typeof assistants.$inferSelect;
+export type InsertAssistant = z.infer<typeof insertAssistantSchema>;
+
+// 助理請假（休假／出差／上課）：不影響排件，只在排件時給課長參考
+export const assistantLeaves = pgTable("assistant_leaves", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  assistantId: varchar("assistant_id").notNull().references(() => assistants.id, { onDelete: "cascade" }),
+  assistantName: text("assistant_name").notNull(),
+  leaveType: text("leave_type").notNull().default("休假"),
+  startDatetime: text("start_datetime").notNull(), // YYYY-MM-DD HH:MM
+  endDatetime: text("end_datetime").notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertAssistantLeaveSchema = createInsertSchema(assistantLeaves).omit({ id: true, createdAt: true });
+export type AssistantLeave = typeof assistantLeaves.$inferSelect;
+export type InsertAssistantLeave = z.infer<typeof insertAssistantLeaveSchema>;
+
 export const insertSurveyorLeaveSchema = createInsertSchema(surveyorLeaves).omit({
   id: true,
   createdAt: true,

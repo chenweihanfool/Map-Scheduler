@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
-import { useSurveyorVisibility, type SurveyorVis } from "@/lib/surveyor-visibility";
+import { ASSISTANTS_KEY, useSurveyorVisibility, type SurveyorVis } from "@/lib/surveyor-visibility";
 import type { Surveyor } from "@shared/schema";
 
 const OPTIONS: { v: SurveyorVis; label: string }[] = [
@@ -56,6 +56,18 @@ export function SurveyorVisibilityMenu() {
               </div>
             );
           })}
+          {/* 助理請假的小標記（月曆日期旁「助理休 N」） */}
+          <div className="flex items-center gap-2 pt-2 mt-1 border-t" data-testid="vis-row-assistants">
+            <span className="w-3 h-3 shrink-0" />
+            <span className={cn("text-sm flex-1", visOf(ASSISTANTS_KEY) === "hide" && "line-through text-muted-foreground")}>助理請假</span>
+            <div className="inline-flex rounded-md border p-0.5 shrink-0">
+              {(["show", "hide"] as const).map((v) => (
+                <button key={v} type="button" onClick={() => setVis(ASSISTANTS_KEY, v)} className={cn("px-2 py-0.5 text-xs rounded", (visOf(ASSISTANTS_KEY) === "hide" ? "hide" : "show") === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")} data-testid={`vis-assistants-${v}`}>
+                  {v === "show" ? "顯示" : "隱藏"}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
         <p className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1">
           <Eye className="h-3 w-3" />點右側測量員卡片篩選時，即使設為隱藏也會顯示那位。

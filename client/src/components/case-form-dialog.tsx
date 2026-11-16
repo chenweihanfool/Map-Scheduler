@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { AssistantNotice } from "@/components/assistant-notice";
 import { DateInput } from "@/components/date-input";
 import { fmtDate } from "@/lib/date-style";
 import { recommendSlot, type SlotRecommendation } from "@/lib/recommend-date";
@@ -1080,6 +1081,7 @@ export function CaseFormDialog({ open, onOpenChange, editCase, defaultDate, defa
                     />
                   </FormControl>
                   <p className="text-xs text-muted-foreground">常用時間：09:00（上午）、14:00（下午）</p>
+                  {!isLeave && <AssistantNotice surveyorName={watchedSurveyor} date={watchedSurveyDate} time={watchedScheduledTime} />}
                   <FormMessage />
                 </FormItem>
               )}

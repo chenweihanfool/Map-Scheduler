@@ -9,7 +9,9 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -27,7 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { caseLabel } from "@/lib/receive";
-import { LEAVE_TYPES, type LeaveType, type SurveyCase, type Surveyor, type SurveyorLeave } from "@shared/schema";
+import { LEAVE_TYPES, type LeaveType, type SurveyCase, type Surveyor, type SurveyorLeave, type Assistant, type AssistantLeave } from "@shared/schema";
 import { useWorkdays } from "@/hooks/use-workdays";
 import { recommendSlot } from "@/lib/recommend-date";
 import { useReschedule } from "@/lib/reschedule";
@@ -84,13 +86,20 @@ type LeaveSubmitData = {
 // 月曆等元件用 /api/leaves、請假管理頁用 /api/leaves?includePast=true，異動後全部更新
 export function invalidateLeaves() {
   queryClient.invalidateQueries({
-    predicate: (query) => String(query.queryKey[0]).startsWith("/api/leaves"),
+    predicate: (query) => /^\/api\/(leaves|assistant-leaves)/.test(String(query.queryKey[0])),
   });
 }
 
+// 助理請假借用同一個表單：kind 為 "assistant" 時 surveyorId／surveyorName 代表助理
+export type EditableLeave = SurveyorLeave & { kind?: "surveyor" | "assistant" };
+export const assistantLeaveAsEditable = (l: AssistantLeave): EditableLeave => ({
+  id: l.id, surveyorId: l.assistantId, surveyorName: l.assistantName, leaveType: l.leaveType,
+  startDatetime: l.startDatetime, endDatetime: l.endDatetime, reason: l.reason, externalId: null, createdAt: l.createdAt, kind: "assistant",
+});
+
 interface LeaveFormProps {
   open: boolean;
-  editingLeave?: SurveyorLeave | null;
+  editingLeave?: EditableLeave | null;
   defaultDate?: string; // YYYY-MM-DD
   onDone: () => void;
   onCancel: () => void;
@@ -139,6 +148,7 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
   };
 
   const blank = () => ({
+    kind: "surveyor" as "surveyor" | "assistant",
     surveyorId: "",
     surveyorName: "",
     leaveType: "休假" as LeaveType,
@@ -156,6 +166,7 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
       const [startDate, startTime] = editingLeave.startDatetime.split(" ");
       const [endDate, endTime] = editingLeave.endDatetime.split(" ");
       setFormData({
+        kind: editingLeave.kind ?? "surveyor",
         surveyorId: editingLeave.surveyorId,
         surveyorName: editingLeave.surveyorName,
         leaveType: (LEAVE_TYPES as readonly string[]).includes(editingLeave.leaveType) ? (editingLeave.leaveType as LeaveType) : "休假",
@@ -174,14 +185,24 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
     queryKey: ["/api/surveyors"],
     enabled: open,
   });
+  const { data: assistantsList = [] } = useQuery<Assistant[]>({
+    queryKey: ["/api/assistants"],
+    enabled: open,
+  });
 
   const saveMutation = useMutation({
     mutationFn: async ({ data, force }: { data: LeaveSubmitData; force?: boolean }) => {
-      const base = editingLeave ? `/api/leaves/${editingLeave.id}` : "/api/leaves";
-      const response = await fetch(force ? `${base}?force=true` : base, {
+      // 助理請假：不檢查案件衝突，存到助理請假
+      const isAsst = formData.kind === "assistant";
+      const root = isAsst ? "/api/assistant-leaves" : "/api/leaves";
+      const base = editingLeave ? `${root}/${editingLeave.id}` : root;
+      const body = isAsst
+        ? { assistantId: data.surveyorId, assistantName: data.surveyorName, leaveType: data.leaveType, startDatetime: data.startDatetime, endDatetime: data.endDatetime, reason: data.reason }
+        : data;
+      const response = await fetch(force && !isAsst ? `${base}?force=true` : base, {
         method: editingLeave ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(body),
       });
       if (!response.ok) {
         const json = await response.json();
@@ -216,7 +237,7 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
 
   const handleSubmit = () => {
     if (!formData.surveyorId) {
-      toast({ title: "請選擇測量員", variant: "destructive" });
+      toast({ title: "請選擇請假的人", variant: "destructive" });
       return;
     }
     if (!formData.startDate || !formData.endDate) {
@@ -268,20 +289,39 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
         </div>
 
         <div className="space-y-2">
-          <Label>測量員 *</Label>
+          <Label>請假的人 *</Label>
           <Select
-            value={formData.surveyorId}
-            onValueChange={(id) => set({ surveyorId: id, surveyorName: surveyorsList.find((s) => s.id === id)?.name || "" })}
+            value={formData.surveyorId ? `${formData.kind === "assistant" ? "a" : "s"}:${formData.surveyorId}` : ""}
+            onValueChange={(v) => {
+              const [k, id] = [v.slice(0, 1), v.slice(2)];
+              if (k === "a") set({ kind: "assistant", surveyorId: id, surveyorName: assistantsList.find((a) => a.id === id)?.name || "" });
+              else set({ kind: "surveyor", surveyorId: id, surveyorName: surveyorsList.find((s) => s.id === id)?.name || "" });
+            }}
+            disabled={!!editingLeave}
           >
             <SelectTrigger data-testid="select-leave-surveyor">
-              <SelectValue placeholder="選擇測量員" />
+              <SelectValue placeholder="選擇測量員或助理" />
             </SelectTrigger>
             <SelectContent>
-              {surveyorsList.map((s) => (
-                <SelectItem key={s.id} value={s.id}>{s.name}（{s.businessAttribute}）</SelectItem>
-              ))}
+              <SelectGroup>
+                <SelectLabel>測量員</SelectLabel>
+                {surveyorsList.map((s) => (
+                  <SelectItem key={s.id} value={`s:${s.id}`}>{s.name}（{s.businessAttribute}）</SelectItem>
+                ))}
+              </SelectGroup>
+              {assistantsList.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel>助理</SelectLabel>
+                  {assistantsList.map((a) => (
+                    <SelectItem key={a.id} value={`a:${a.id}`}>
+                      {a.name}（{a.surveyorId ? `${surveyorsList.find((s) => s.id === a.surveyorId)?.name ?? ""}的助理` : "非固定助理"}）
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
             </SelectContent>
           </Select>
+          {formData.kind === "assistant" && <p className="text-xs text-muted-foreground">助理請假不影響排件，只在排件時提醒課長參考。</p>}
         </div>
 
         <div className="space-y-2">

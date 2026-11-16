@@ -1,10 +1,11 @@
 import { 
-  users, surveyCases, surveyors, systemSettings, surveyorLeaves, caseTypes,
+  users, surveyCases, surveyors, systemSettings, surveyorLeaves, caseTypes, assistants, assistantLeaves,
   type User, type InsertUser,
   type SurveyCase, type InsertSurveyCase, type UpdateSurveyCase,
   type Surveyor, type InsertSurveyor, type UpdateSurveyor,
   type SystemSettings, type UpdateSettings,
   type SurveyorLeave, type InsertSurveyorLeave,
+  type Assistant, type AssistantLeave, type InsertAssistant, type InsertAssistantLeave,
   type CoordinateStatus,
   type CaseTypeRecord, type InsertCaseType,
   type Agent, type InsertAgent, agents,
@@ -64,6 +65,17 @@ export interface IStorage {
   deleteLeave(id: string): Promise<boolean>;
   restoreCase(row: SurveyCase): Promise<SurveyCase>;
   restoreLeave(row: SurveyorLeave): Promise<SurveyorLeave>;
+
+  getAssistants(): Promise<Assistant[]>;
+  createAssistant(data: InsertAssistant): Promise<Assistant>;
+  updateAssistant(id: string, data: Partial<InsertAssistant>): Promise<Assistant | undefined>;
+  deleteAssistant(id: string): Promise<boolean>;
+  getAssistantLeaves(includePast?: boolean): Promise<AssistantLeave[]>;
+  getAssistantLeave(id: string): Promise<AssistantLeave | undefined>;
+  createAssistantLeave(data: InsertAssistantLeave): Promise<AssistantLeave>;
+  updateAssistantLeave(id: string, data: Partial<InsertAssistantLeave>): Promise<AssistantLeave | undefined>;
+  deleteAssistantLeave(id: string): Promise<boolean>;
+  restoreAssistantLeave(row: AssistantLeave): Promise<AssistantLeave>;
   getLeaveByExternalId(externalId: string): Promise<SurveyorLeave | undefined>;
   upsertLeaveByExternalId(externalId: string, data: LeaveUpsertData): Promise<{ leave: SurveyorLeave; created: boolean }>;
   deleteLeaveByExternalId(externalId: string): Promise<boolean>;
@@ -405,6 +417,53 @@ export class DatabaseStorage implements IStorage {
       .where(eq(surveyorLeaves.id, id))
       .returning();
     return leave || undefined;
+  }
+
+  // ===== 助理 =====
+  async getAssistants(): Promise<Assistant[]> {
+    return db.select().from(assistants).orderBy(asc(assistants.sortOrder), asc(assistants.name));
+  }
+  async createAssistant(data: InsertAssistant): Promise<Assistant> {
+    const [a] = await db.insert(assistants).values(data).returning();
+    return a;
+  }
+  async updateAssistant(id: string, data: Partial<InsertAssistant>): Promise<Assistant | undefined> {
+    const [a] = await db.update(assistants).set(data).where(eq(assistants.id, id)).returning();
+    if (a && data.name) await db.update(assistantLeaves).set({ assistantName: a.name }).where(eq(assistantLeaves.assistantId, id));
+    return a || undefined;
+  }
+  async deleteAssistant(id: string): Promise<boolean> {
+    const r = await db.delete(assistants).where(eq(assistants.id, id)).returning();
+    return r.length > 0;
+  }
+  async getAssistantLeaves(includePast = false): Promise<AssistantLeave[]> {
+    if (includePast) return db.select().from(assistantLeaves).orderBy(asc(assistantLeaves.startDatetime));
+    const todayStart = `${new Date().toISOString().split("T")[0]} 00:00`;
+    return db.select().from(assistantLeaves).where(gte(assistantLeaves.endDatetime, todayStart)).orderBy(asc(assistantLeaves.startDatetime));
+  }
+  async getAssistantLeave(id: string): Promise<AssistantLeave | undefined> {
+    const [l] = await db.select().from(assistantLeaves).where(eq(assistantLeaves.id, id));
+    return l || undefined;
+  }
+  async createAssistantLeave(data: InsertAssistantLeave): Promise<AssistantLeave> {
+    const [l] = await db.insert(assistantLeaves).values(data).returning();
+    return l;
+  }
+  async updateAssistantLeave(id: string, data: Partial<InsertAssistantLeave>): Promise<AssistantLeave | undefined> {
+    const [l] = await db.update(assistantLeaves).set(data).where(eq(assistantLeaves.id, id)).returning();
+    return l || undefined;
+  }
+  async deleteAssistantLeave(id: string): Promise<boolean> {
+    const r = await db.delete(assistantLeaves).where(eq(assistantLeaves.id, id)).returning();
+    return r.length > 0;
+  }
+  async restoreAssistantLeave(row: AssistantLeave): Promise<AssistantLeave> {
+    const cols = Object.keys(getTableColumns(assistantLeaves));
+    const values: any = Object.fromEntries(Object.entries(row).filter(([k]) => cols.includes(k)));
+    if (values.createdAt) values.createdAt = new Date(values.createdAt);
+    const [l] = await db.insert(assistantLeaves).values(values).onConflictDoNothing().returning();
+    if (!l) throw Object.assign(new Error("這筆請假已經存在"), { status: 409 });
+    return l;
   }
 
   async deleteLeave(id: string): Promise<boolean> {

@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { assistantLeaveAsEditable, type EditableLeave } from "@/components/leave-form";
 import { deleteLeave, restoreLeave, useUndoToast } from "@/lib/undo";
 import { fmtDate } from "@/lib/date-style";
 import { useLocation } from "wouter";
@@ -9,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { type Surveyor, type SurveyorLeave } from "@shared/schema";
+import { type Surveyor, type SurveyorLeave, type AssistantLeave } from "@shared/schema";
 import { useMemo, useState } from "react";
 import {
   Dialog,
@@ -82,8 +83,8 @@ export default function LeavesPage() {
   const [, navigate] = useLocation();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deletingLeave, setDeletingLeave] = useState<SurveyorLeave | null>(null);
-  const [editingLeave, setEditingLeave] = useState<SurveyorLeave | null>(null);
+  const [deletingLeave, setDeletingLeave] = useState<EditableLeave | null>(null);
+  const [editingLeave, setEditingLeave] = useState<EditableLeave | null>(null);
 
   const [surveyorFilter, setSurveyorFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
@@ -94,15 +95,21 @@ export default function LeavesPage() {
     queryKey: ["/api/surveyors"],
   });
 
-  const { data: leavesList = [], isLoading } = useQuery<SurveyorLeave[]>({
+  const { data: surveyorLeavesList = [], isLoading } = useQuery<SurveyorLeave[]>({
     queryKey: [LEAVES_ALL_KEY],
   });
+  // 助理請假一起列出（標「助理」），篩選「助理」可只看助理
+  const { data: assistantLeavesList = [] } = useQuery<AssistantLeave[]>({ queryKey: ["/api/assistant-leaves?includePast=true"] });
+  const leavesList = useMemo<EditableLeave[]>(
+    () => [...surveyorLeavesList.map((l) => ({ ...l, kind: "surveyor" as const })), ...assistantLeavesList.map(assistantLeaveAsEditable)],
+    [surveyorLeavesList, assistantLeavesList],
+  );
 
   const filteredLeaves = useMemo(() => {
     const now = nowDatetime();
     const q = keyword.trim().toLowerCase();
     const result = leavesList.filter((leave) => {
-      if (surveyorFilter !== "all" && leave.surveyorId !== surveyorFilter) return false;
+      if (surveyorFilter === "__assistants" ? leave.kind !== "assistant" : surveyorFilter !== "all" && leave.surveyorId !== surveyorFilter) return false;
       if (statusFilter === "active" && leave.endDatetime < now) return false;
       if (statusFilter === "past" && leave.endDatetime >= now) return false;
       if (q) {
@@ -130,9 +137,22 @@ export default function LeavesPage() {
 
   const undoToast = useUndoToast();
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => deleteLeave(id),
-    onSuccess: (row) => {
+    mutationFn: async (id: string) => {
+      if (deletingLeave?.kind === "assistant") {
+        const res = await apiRequest("DELETE", `/api/assistant-leaves/${id}`);
+        const row = (await res.json()).deleted as AssistantLeave | undefined;
+        return row ? ({ ...assistantLeaveAsEditable(row), _asst: row } as any) : null;
+      }
+      return deleteLeave(id);
+    },
+    onSuccess: (row: any) => {
       invalidateLeaves();
+      if (row?._asst) {
+        const a = row._asst as AssistantLeave;
+        undoToast(`${a.leaveType || "請假"}已取消`, `${a.assistantName}（助理） ${a.startDatetime} ~ ${a.endDatetime}`, async () => { await apiRequest("POST", "/api/assistant-leaves/restore", { leave: a }); invalidateLeaves(); });
+        setDeleteDialogOpen(false); setDeletingLeave(null);
+        return;
+      }
       if (row) undoToast(`${row.leaveType || "請假"}已取消`, `${row.surveyorName} ${row.startDatetime} ~ ${row.endDatetime}`, () => restoreLeave(row));
       else toast({ title: "請假已取消" });
       setDeleteDialogOpen(false);
@@ -148,12 +168,12 @@ export default function LeavesPage() {
     setDialogOpen(true);
   };
 
-  const handleEdit = (leave: SurveyorLeave) => {
+  const handleEdit = (leave: EditableLeave) => {
     setEditingLeave(leave);
     setDialogOpen(true);
   };
 
-  const handleDelete = (leave: SurveyorLeave) => {
+  const handleDelete = (leave: EditableLeave) => {
     setDeletingLeave(leave);
     setDeleteDialogOpen(true);
   };
@@ -217,10 +237,11 @@ export default function LeavesPage() {
                     <SelectValue placeholder="全部測量員" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">全部測量員</SelectItem>
+                    <SelectItem value="all">全部人員</SelectItem>
                     {surveyorsList.map((s) => (
                       <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                     ))}
+                    <SelectItem value="__assistants">只看助理</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
@@ -274,6 +295,7 @@ export default function LeavesPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <span className="font-medium">{leave.surveyorName}</span>
+                          {leave.kind === "assistant" && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">助理</Badge>}
                           <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${leaveStyle(leave.leaveType).chip}`}>
                             {leave.leaveType || "休假"}
                           </Badge>

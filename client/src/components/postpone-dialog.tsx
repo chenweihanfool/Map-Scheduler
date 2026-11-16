@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AssistantNotice } from "@/components/assistant-notice";
 import { format } from "date-fns";
 import { DateInput } from "@/components/date-input";
 import { fmtDate } from "@/lib/date-style";
@@ -158,6 +159,7 @@ export function PostponeDialog({ open, onOpenChange, caseData, onDone }: Postpon
             </div>
           </div>
 
+          {date && <AssistantNotice surveyorName={caseData.surveyor} date={date} time={time} />}
           <p className="text-xs text-muted-foreground">
             {date
               ? "原案件會標為「延期」留在原日期作紀錄，並複製一筆到延期日期，兩筆互相連結。"
@@ -230,6 +232,7 @@ export function ChangePostponeDateDialog({ open, onOpenChange, caseData }: Chang
           <DialogDescription>{caseLabel(caseData)}・{caseData.landParcel}・由 {fmtDate(caseData.postponedFromDate)} {caseData.postponedFromTime} 延期</DialogDescription>
         </DialogHeader>
         <SlotSuggestion caseData={caseData} after={caseData.postponedFromDate} date={date} time={time} onApply={(d, t) => { setDate(d); setTime(t); }} />
+        <AssistantNotice surveyorName={caseData.surveyor} date={date} time={time} />
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
             <Label htmlFor="pp-new-date">延期日期</Label>

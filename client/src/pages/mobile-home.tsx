@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState } from "react";
+import { assistantLeavesOn, assistantStatus, assistantWarning, halfOfTime, useAssistants } from "@/lib/assistants";
 import { useToday, useOnDayChange } from "@/lib/use-today";
 import { useQuery } from "@tanstack/react-query";
 import { addDays, addMonths, endOfMonth, format, startOfMonth, startOfWeek, isSameMonth } from "date-fns";
 import {
   CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Monitor, MoreHorizontal, Navigation, Pencil,
-  Phone, Plus, RefreshCw, Users, CalendarOff, UserRound, Check, MapPin, CalendarClock,
+  Phone, Plus, RefreshCw, Users, CalendarOff, UserRound, UserRoundX, Check, MapPin, CalendarClock,
 } from "lucide-react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 import { CaseFormDialog } from "@/components/case-form-dialog";
@@ -15,7 +16,7 @@ import { fmtDate } from "@/lib/date-style";
 import { applicantText, caseLabel } from "@/lib/receive";
 import { queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import { isPostponed, isPostponePending, subsOf, type Agent, type SurveyCase, type Surveyor, type SurveyorLeave } from "@shared/schema";
+import { isPostponed, isPostponePending, subsOf, type Agent, type AssistantLeave, type SurveyCase, type Surveyor, type SurveyorLeave } from "@shared/schema";
 
 // 手機版：以「我的排程」為主的 App 式介面。新增、編輯等功能保留但放在次要位置
 const ME_KEY = "ms-me";
@@ -33,7 +34,9 @@ function dayLabel(date: string, today: string) {
   return diff === 0 ? `今天・${md}` : diff === 1 ? `明天・${md}` : diff === 2 ? `後天・${md}` : md;
 }
 
-type Item = { kind: "case"; c: SurveyCase } | { kind: "leave"; l: SurveyorLeave };
+type Item = { kind: "case"; c: SurveyCase } | { kind: "leave"; l: SurveyorLeave }
+  | { kind: "asst"; l: AssistantLeave }          // 「大家」：助理請假
+  | { kind: "asstWarn"; key: string; text: string };   // 「我的」：自己的助理都請假
 
 export default function MobileHome() {
   const [me, setMeState] = useState(readMe);
@@ -62,6 +65,7 @@ export default function MobileHome() {
   const { data: leaves = [] } = useQuery<SurveyorLeave[]>({ queryKey: ["/api/leaves"] });
   const { data: agents = [] } = useQuery<Agent[]>({ queryKey: ["/api/agents"] });
   const { info: dayInfo } = useWorkdays();
+  const { assistants, leaves: asstLeaves } = useAssistants();
   const who = me === "*" ? "" : me;   // "*" = 只看全部
 
   const colorOf = (name: string) => {
@@ -75,7 +79,18 @@ export default function MobileHome() {
     const cs = cases.filter((c) => c.surveyDate === date && (!who || c.surveyor === who))
       .sort((a, b) => timeOf(a.scheduledTime).localeCompare(timeOf(b.scheduledTime)));
     const ls = leaves.filter((l) => (!who || l.surveyorName === who) && l.startDatetime.slice(0, 10) <= date && l.endDatetime.slice(0, 10) >= date);
-    return [...ls.map((l) => ({ kind: "leave", l }) as Item), ...cs.map((c) => ({ kind: "case", c }) as Item)];
+    const extra: Item[] = [];
+    if (who) {
+      const me = surveyors.find((s) => s.name === who);
+      (["am", "pm"] as const).forEach((h) => {
+        const st = assistantStatus(me, date, h, assistants, asstLeaves);
+        // 只在那個半天有排案件時提醒，沒排件的日子不用管
+        if (st.warn && cs.some((c) => !isPostponed(c) && halfOfTime(c.scheduledTime) === h)) extra.push({ kind: "asstWarn", key: `${date}${h}`, text: assistantWarning("你", st, h) });
+      });
+    } else {
+      assistantLeavesOn(asstLeaves, date).forEach((l) => extra.push({ kind: "asst", l }));
+    }
+    return [...ls.map((l) => ({ kind: "leave", l }) as Item), ...extra, ...cs.map((c) => ({ kind: "case", c }) as Item)];
   };
 
   // 接下來 60 天有東西的日子
@@ -86,7 +101,7 @@ export default function MobileHome() {
       if (items.length || i === 0) out.push({ date: d, items });
     }
     return out;
-  }, [cases, leaves, who, today]);
+  }, [cases, leaves, who, today, assistants, asstLeaves, surveyors]);
 
   const nextCase = upcoming.flatMap((d) => d.items).find((x) => x.kind === "case" && !isPostponed(x.c) && (x.c.surveyDate > today || timeOf(x.c.scheduledTime) >= format(new Date(), "HH:mm"))) as { kind: "case"; c: SurveyCase } | undefined;
   const weekEnd = iso(addDays(startOfWeek(base, { weekStartsOn: 1 }), 6));
@@ -160,7 +175,19 @@ export default function MobileHome() {
           <span className="ml-auto text-xs font-normal text-muted-foreground">{items.filter((x) => x.kind === "case").length || ""}{items.some((x) => x.kind === "case") ? " 件" : ""}</span>
         </h3>
         {items.length === 0 && <div className="rounded-2xl border border-dashed p-4 text-center text-sm text-muted-foreground">{w.workday ? "今天沒有排件" : "今天休息"}</div>}
-        {items.map((x) => x.kind === "case" ? <CaseCard key={x.c.id} c={x.c} showWho={showWho} /> : <LeaveCard key={x.l.id} l={x.l} showWho={showWho} />)}
+        {items.map((x) => x.kind === "case" ? <CaseCard key={x.c.id} c={x.c} showWho={showWho} />
+          : x.kind === "leave" ? <LeaveCard key={x.l.id} l={x.l} showWho={showWho} />
+          : x.kind === "asstWarn" ? (
+            <div key={x.key} className="flex items-start gap-2.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 ring-1 ring-amber-200 dark:ring-amber-900 p-3 text-sm text-amber-900 dark:text-amber-200" data-testid="m-asst-warn">
+              <UserRoundX className="h-5 w-5 shrink-0" />{x.text}
+            </div>
+          ) : (
+            <div key={x.l.id} className="flex items-center gap-2.5 rounded-2xl bg-muted/60 px-3 py-2 text-sm text-muted-foreground" data-testid="m-asst-leave">
+              <UserRoundX className="h-4 w-4 shrink-0" />
+              <span className="flex-1 truncate">助理 {x.l.assistantName}・{x.l.leaveType}</span>
+              <span className="text-xs tabular-nums">{x.l.startDatetime.slice(11)}~{x.l.endDatetime.slice(11)}</span>
+            </div>
+          ))}
       </section>
     );
   };
