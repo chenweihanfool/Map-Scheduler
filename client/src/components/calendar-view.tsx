@@ -28,7 +28,8 @@ import { applicantText } from "@/lib/receive";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 import { useWorkdays } from "@/hooks/use-workdays";
 import { useReschedule, DRAG_TYPE } from "@/lib/reschedule";
-import { useSurveyorVisibility } from "@/lib/surveyor-visibility";
+import { useSurveyorVisibility, ASSISTANTS_KEY } from "@/lib/surveyor-visibility";
+import { assistantLeavesOn, useAssistants } from "@/lib/assistants";
 import { SurveyorVisibilityMenu } from "@/components/surveyor-visibility-menu";
 import type { WorkdayInfo } from "@shared/holidays";
 import { WorkdayEditor } from "@/components/workday-editor";
@@ -137,6 +138,8 @@ export function CalendarView({
 
   // 使用者自己設定的測量員顯示方式（隱藏的不列出；點右側卡片篩選那位時照常顯示）
   const { visOf } = useSurveyorVisibility();
+  const { assistants, leaves: asstLeaves } = useAssistants();
+  const showAsst = assistants.length > 0 && visOf(ASSISTANTS_KEY) !== "hide";
   const shown = (name: string) => surveyorFilter === name || visOf(name) !== "hide";
   const isDim = (name: string) => surveyorFilter !== name && visOf(name) === "dim";
 
@@ -409,6 +412,22 @@ export function CalendarView({
                   {format(day, "d")}
                 </button>
                 <DayBadge info={wd} weekday={dayOfWeek} dim={!isCurrentMonth} testId={`holiday-${dateKey}`} />
+                {showAsst && (() => {
+                  // 助理請假只放小標記，不畫橫條；滑鼠移上去看是誰、固定助理搭配哪位測量員
+                  const al = assistantLeavesOn(asstLeaves, dateKey);
+                  if (!al.length) return null;
+                  const names = Array.from(new Set(al.map((l) => l.assistantName)));
+                  const tip = names.map((n) => {
+                    const a = assistants.find((x) => x.name === n), p = a?.surveyorId ? surveyorsList.find((s) => s.id === a.surveyorId)?.name : null;
+                    const ls = al.filter((l) => l.assistantName === n).map((l) => `${l.leaveType} ${l.startDatetime.slice(11)}~${l.endDatetime.slice(11)}`).join("、");
+                    return `${n}（${p ? `${p}的助理` : "非固定"}）${ls}`;
+                  }).join("\n");
+                  return (
+                    <span className={cn("shrink-0 rounded px-1 text-[10px] leading-4 font-medium bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300", !isCurrentMonth && "opacity-50")} title={tip} data-testid={`asst-badge-${dateKey}`}>
+                      助理休 {names.length}
+                    </span>
+                  );
+                })()}
                 <Button
                   variant="ghost"
                   size="icon"

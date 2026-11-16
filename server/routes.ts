@@ -16,6 +16,7 @@ import {
   LEAVE_TYPES,
   type CoordinateStatus,
   type SurveyCase,
+  insertAssistantSchema, updateAssistantSchema, insertAssistantLeaveSchema,
   insertAgentSchema,
   updateAgentSchema,
   postponeSchema,
@@ -675,6 +676,68 @@ export async function registerRoutes(
       console.error("Error deleting leave:", error);
       res.status(500).json({ error: "Failed to delete leave" });
     }
+  });
+
+  // ===== 助理與助理請假（不影響排件，只給排件參考）=====
+  app.get("/api/assistants", async (_req, res) => {
+    try { res.json(await storage.getAssistants()); }
+    catch (error) { console.error("Error fetching assistants:", error); res.status(500).json({ error: "Failed to fetch assistants" }); }
+  });
+  app.post("/api/assistants", async (req, res) => {
+    const v = insertAssistantSchema.safeParse(req.body);
+    if (!v.success) return res.status(400).json({ error: v.error.issues[0]?.message || "資料不正確" });
+    try { res.status(201).json(await storage.createAssistant({ ...v.data, surveyorId: v.data.surveyorId || null })); }
+    catch (error: any) { res.status(error?.code === "23505" ? 409 : 500).json({ error: error?.code === "23505" ? "已有同名的助理" : "新增失敗" }); }
+  });
+  app.patch("/api/assistants/:id", async (req, res) => {
+    const v = updateAssistantSchema.safeParse(req.body);
+    if (!v.success) return res.status(400).json({ error: v.error.issues[0]?.message || "資料不正確" });
+    try {
+      const a = await storage.updateAssistant(req.params.id, "surveyorId" in v.data ? { ...v.data, surveyorId: v.data.surveyorId || null } : v.data);
+      if (!a) return res.status(404).json({ error: "Assistant not found" });
+      res.json(a);
+    } catch (error: any) { res.status(error?.code === "23505" ? 409 : 500).json({ error: error?.code === "23505" ? "已有同名的助理" : "更新失敗" }); }
+  });
+  app.delete("/api/assistants/:id", async (req, res) => {
+    try { (await storage.deleteAssistant(req.params.id)) ? res.status(204).send() : res.status(404).json({ error: "Assistant not found" }); }
+    catch (error) { console.error("Error deleting assistant:", error); res.status(500).json({ error: "刪除失敗" }); }
+  });
+
+  app.get("/api/assistant-leaves", async (req, res) => {
+    try { res.json(await storage.getAssistantLeaves(req.query.includePast === "true")); }
+    catch (error) { console.error("Error fetching assistant leaves:", error); res.status(500).json({ error: "Failed to fetch assistant leaves" }); }
+  });
+  app.post("/api/assistant-leaves", async (req, res) => {
+    const v = insertAssistantLeaveSchema.safeParse(req.body);
+    if (!v.success) return res.status(400).json({ error: "Validation failed", details: v.error.flatten() });
+    if (v.data.startDatetime >= v.data.endDatetime) return res.status(400).json({ error: "開始時間必須早於結束時間" });
+    try { res.status(201).json(await storage.createAssistantLeave(v.data)); }
+    catch (error) { console.error("Error creating assistant leave:", error); res.status(500).json({ error: "登記失敗" }); }
+  });
+  app.patch("/api/assistant-leaves/:id", async (req, res) => {
+    const v = insertAssistantLeaveSchema.partial().safeParse(req.body);
+    if (!v.success) return res.status(400).json({ error: "Validation failed", details: v.error.flatten() });
+    try {
+      const cur = await storage.getAssistantLeave(req.params.id);
+      if (!cur) return res.status(404).json({ error: "Leave not found" });
+      if ((v.data.startDatetime ?? cur.startDatetime) >= (v.data.endDatetime ?? cur.endDatetime)) return res.status(400).json({ error: "開始時間必須早於結束時間" });
+      res.json(await storage.updateAssistantLeave(req.params.id, v.data));
+    } catch (error) { console.error("Error updating assistant leave:", error); res.status(500).json({ error: "更新失敗" }); }
+  });
+  app.delete("/api/assistant-leaves/:id", async (req, res) => {
+    try {
+      const row = await storage.getAssistantLeave(req.params.id);
+      if (!row) return res.status(404).json({ error: "Leave not found" });
+      await storage.deleteAssistantLeave(req.params.id);
+      res.json({ success: true, deleted: row });
+    } catch (error) { console.error("Error deleting assistant leave:", error); res.status(500).json({ error: "刪除失敗" }); }
+  });
+  app.post("/api/assistant-leaves/restore", async (req, res) => {
+    try {
+      const row = req.body?.leave;
+      if (!row?.id || !row.assistantId || !row.startDatetime) return res.status(400).json({ error: "資料不完整" });
+      res.json(await storage.restoreAssistantLeave(row));
+    } catch (error: any) { res.status(error?.status || 500).json({ error: error?.message || "Failed to restore leave" }); }
   });
 
   app.post("/api/leaves/restore", async (req, res) => {

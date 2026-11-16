@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { assistantLeavesOn, assistantStatus, assistantWarning, useAssistants } from "@/lib/assistants";
 import { useToday, useOnDayChange } from "@/lib/use-today";
 import { useQuery } from "@tanstack/react-query";
 import { addDays, format, startOfWeek } from "date-fns";
@@ -46,6 +47,7 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
   });
   const [span, setSpan] = useState<1 | 2>(readSpan);
   const { info: dayInfo } = useWorkdays();
+  const { assistants, leaves: asstLeaves } = useAssistants();
   // 拖曳改期：拖到別的日期、上下午或別位測量員；同一半天內移動時保留原時間
   const { move, alert: rescheduleAlert } = useReschedule();
   const [dropKey, setDropKey] = useState<string | null>(null);
@@ -147,7 +149,7 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
         <div
           className="grid min-w-[900px] content-start bg-border gap-px"
           // 每列依內容自動長高，完整顯示每格內容；表格放不下時在表格內捲動
-          style={{ gridTemplateColumns: gridCols, gridTemplateRows: `auto repeat(${rows.length * 2}, minmax(38px, auto)) auto` }}
+          style={{ gridTemplateColumns: gridCols, gridTemplateRows: `auto repeat(${rows.length * 2}, minmax(38px, auto))${assistants.length ? " auto" : ""} auto` }}
         >
           {/* 表頭：日期 */}
           <div className="bg-muted sticky left-0 z-20 px-2 py-1.5 text-xs text-muted-foreground flex items-end">測量員</div>
@@ -215,6 +217,15 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
                       }}
                     >
                       {!list.length && !lv.length && <span className="absolute right-1 top-0.5 text-[10px] text-muted-foreground/50 pointer-events-none">{h.label}</span>}
+                      {(() => {
+                        // 固定助理都請假：標「助理休」，滑鼠移上去看可支援的非固定助理
+                        const st = assistants.length && w.workday ? assistantStatus(s, k, h.key, assistants, asstLeaves) : null;
+                        return st?.warn ? (
+                          <div className="text-[11px] px-1.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-medium" title={assistantWarning(s.name, st, h.key)} data-testid={`board-asst-${s.name}-${k}-${h.key}`}>
+                            助理休{st.floatAvail.length ? `・可找 ${st.floatAvail.map((a) => a.name).join("、")}` : ""}
+                          </div>
+                        ) : null;
+                      })()}
                       {lv.map((l) => (
                         <div
                           key={l.id}
@@ -245,12 +256,31 @@ export function ScheduleBoard({ cases, surveyorFilter, dimPastCases, onCaseClick
             ];
           })}
 
+          {/* 助理請假（給排件參考）：每天上午／下午誰請假，固定助理標出搭配的測量員 */}
+          {assistants.length > 0 && [
+            <div key="asst-h" className="bg-muted/60 sticky left-0 z-10 px-2 py-1 text-xs text-muted-foreground" style={{ gridColumn: 1, gridRow: rows.length * 2 + 2 }}>助理請假</div>,
+            ...days.map((d, j) => {
+              const k = keys[j], weekBreak = j > 0 && d.getDay() < days[j - 1].getDay();
+              const list = HALVES.map((h) => ({ h, names: assistantLeavesOn(asstLeaves, k, h.key).map((l) => l.assistantName) }));
+              return (
+                <div key={`asst-${k}`} style={{ gridColumn: j + 2, gridRow: rows.length * 2 + 2 }} className={cn("bg-muted/40 px-1.5 py-1 text-[11px] leading-4 space-y-0.5", weekBreak && "border-l-4 border-l-border")} data-testid={`board-asst-row-${k}`}>
+                  {list.every((x) => !x.names.length) ? <span className="text-muted-foreground/60">—</span> : list.map(({ h, names }) => names.length ? (
+                    <div key={h.key}><span className="text-muted-foreground">{h.label}</span> {Array.from(new Set(names)).map((n) => {
+                      const a = assistants.find((x) => x.name === n), partner = a?.surveyorId ? surveyors.find((s) => s.id === a.surveyorId)?.name : null;
+                      return <span key={n} className="mr-1">{n}<span className="text-muted-foreground">{partner ? `(${partner})` : "(非固定)"}</span></span>;
+                    })}</div>
+                  ) : null)}
+                </div>
+              );
+            }),
+          ]}
+
           {/* 每天合計 */}
-          <div className="bg-muted sticky left-0 z-10 px-2 py-1 text-xs text-muted-foreground" style={{ gridColumn: 1, gridRow: rows.length * 2 + 2 }}>每日合計</div>
+          <div className="bg-muted sticky left-0 z-10 px-2 py-1 text-xs text-muted-foreground" style={{ gridColumn: 1, gridRow: rows.length * 2 + 2 + (assistants.length ? 1 : 0) }}>每日合計</div>
           {days.map((d, j) => {
             const k = keys[j], am = countOf(k, "am"), pm = countOf(k, "pm"), weekBreak = j > 0 && d.getDay() < days[j - 1].getDay();
             return (
-              <div key={`t-${k}`} style={{ gridColumn: j + 2, gridRow: rows.length * 2 + 2 }} className={cn("bg-muted px-1.5 py-1 text-center text-xs tabular-nums text-muted-foreground", weekBreak && "border-l-4 border-l-border")}>
+              <div key={`t-${k}`} style={{ gridColumn: j + 2, gridRow: rows.length * 2 + 2 + (assistants.length ? 1 : 0) }} className={cn("bg-muted px-1.5 py-1 text-center text-xs tabular-nums text-muted-foreground", weekBreak && "border-l-4 border-l-border")}>
                 {am + pm ? <>上 <b className="text-foreground">{am}</b>・下 <b className="text-foreground">{pm}</b></> : "—"}
               </div>
             );

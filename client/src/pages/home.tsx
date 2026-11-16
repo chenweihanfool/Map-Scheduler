@@ -26,10 +26,21 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.35.1";
-const RELEASE_DATE = "2026-11-11";
+const APP_VERSION = "v2.36.0";
+const RELEASE_DATE = "2026-11-16";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.36.0",
+    date: "2026-11-16",
+    items: [
+      "新增助理：在「測量員管理」設定每位助理固定搭配的測量員，或設為非固定助理（支援用）；助理不參與排件",
+      "助理請假：紅色「請假」按鈕的人員選單分成測量員、助理，測量員可以代請，助理也能用手機自己登記；請假管理頁一起列出（可篩選只看助理）",
+      "排件提醒：只有該測量員的固定助理都請假時，新增案件、延期視窗才會顯示提醒，並列出當天可支援的非固定助理（不擋排件）",
+      "排班表：固定助理都請假的時段標「助理休・可找 ○○」，最下方新增「助理請假」列；月曆日期旁顯示「助理休 N」（測量員顯示選單可關閉）",
+      "手機版：「我的」在自己的助理都請假、且那半天有案件時提醒；「大家」列出助理請假",
+    ],
+  },
   {
     version: "v2.35.1",
     date: "2026-11-11",

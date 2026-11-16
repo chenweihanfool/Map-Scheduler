@@ -3,6 +3,7 @@ import { useSyncExternalStore } from "react";
 // 各測量員在月曆／排班表的顯示方式：顯示（預設）、淡化、隱藏。
 // 只存在這個瀏覽器，每位使用者自己設定，不影響其他人與資料
 export type SurveyorVis = "show" | "dim" | "hide";
+export const ASSISTANTS_KEY = "__assistants";   // 助理請假標記的顯示開關，存在同一份設定裡
 const KEY = "ms-surveyor-vis";
 const listeners = new Set<() => void>();
 

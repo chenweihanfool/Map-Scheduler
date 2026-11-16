@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { AssistantsCard } from "@/components/assistants-card";
 import { useLocation } from "wouter";
 import { ArrowLeft, Users, Plus, Pencil, Trash2, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -287,6 +288,7 @@ export default function SurveyorsPage() {
               )}
             </CardContent>
           </Card>
+          <div className="mt-6"><AssistantsCard /></div>
         </div>
       </main>
 

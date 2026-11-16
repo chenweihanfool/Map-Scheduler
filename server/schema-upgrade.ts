@@ -164,6 +164,29 @@ export async function upgradeTimeFormat(): Promise<void> {
   }
 }
 
+// v2.36.0：助理與助理請假
+export async function upgradeAssistants(): Promise<void> {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS mapscheduler.assistants (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      name text NOT NULL UNIQUE,
+      surveyor_id varchar,
+      sort_order integer NOT NULL DEFAULT 0,
+      created_at timestamp DEFAULT now())`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS mapscheduler.assistant_leaves (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      assistant_id varchar NOT NULL REFERENCES mapscheduler.assistants(id) ON DELETE CASCADE,
+      assistant_name text NOT NULL,
+      leave_type text NOT NULL DEFAULT '休假',
+      start_datetime text NOT NULL,
+      end_datetime text NOT NULL,
+      reason text,
+      created_at timestamp DEFAULT now())`);
+  } catch (error) {
+    console.error("upgradeAssistants failed:", error);
+  }
+}
+
 export async function upgradePostponeFields(): Promise<void> {
   try {
     await pool.query("ALTER TABLE mapscheduler.survey_cases ADD COLUMN IF NOT EXISTS subs jsonb");   // v2.17.0 連件
