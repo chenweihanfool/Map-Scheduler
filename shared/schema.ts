@@ -146,7 +146,8 @@ export const POSTPONE_SYNC_FIELDS = [
   "receiveDate", "receiveWord", "caseNumber", "caseType", "landParcel", "owner", "courtDivision", "courtDocNo",
   "agent", "surveyor", "notes", "subs",
 ] as const;
-export const POSTPONE_REASONS = ["當日下雨", "案情複雜需擴大檢測", "現場會勘時間過長"] as const;
+// 與測量案件排程的延期理由清單保持一致
+export const POSTPONE_REASONS = ["當日下雨", "案情複雜需擴大檢測", "現場會勘時間過長", "當日障礙物未清除（現已清除）"] as const;
 // 延期的原案件只是紀錄，不佔時段、不算排件量
 export const isPostponed = (c: { status?: string | null }) => c.status === POSTPONED;
 // 延期了但還沒排新日期
