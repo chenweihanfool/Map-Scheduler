@@ -136,29 +136,40 @@ export default function LeavesPage() {
   };
 
   const undoToast = useUndoToast();
+  // 同行的人：同類型、同起訖時間的出差／上課（一起登記的多人）
+  const companionsOf = (leave: EditableLeave) =>
+    leave.leaveType === "休假" ? [] : leavesList.filter((l) => l !== leave && l.leaveType === leave.leaveType && l.startDatetime === leave.startDatetime && l.endDatetime === leave.endDatetime);
+  const [withCompanions, setWithCompanions] = useState(false);
+
+  // 刪除一筆，回傳復原用的函式
+  const removeOne = async (leave: EditableLeave): Promise<(() => Promise<void>) | null> => {
+    if (leave.kind === "assistant") {
+      const res = await apiRequest("DELETE", `/api/assistant-leaves/${leave.id}`);
+      const row = (await res.json()).deleted as AssistantLeave | undefined;
+      return row ? async () => { await apiRequest("POST", "/api/assistant-leaves/restore", { leave: row }); } : null;
+    }
+    const row = await deleteLeave(leave.id);
+    return row ? async () => { await restoreLeave(row); } : null;
+  };
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      if (deletingLeave?.kind === "assistant") {
-        const res = await apiRequest("DELETE", `/api/assistant-leaves/${id}`);
-        const row = (await res.json()).deleted as AssistantLeave | undefined;
-        return row ? ({ ...assistantLeaveAsEditable(row), _asst: row } as any) : null;
-      }
-      return deleteLeave(id);
+    mutationFn: async (targets: EditableLeave[]) => {
+      const undos: (() => Promise<void>)[] = [];
+      for (const t of targets) { const u = await removeOne(t); if (u) undos.push(u); }
+      return { targets, undos };
     },
-    onSuccess: (row: any) => {
+    onSuccess: ({ targets, undos }) => {
       invalidateLeaves();
-      if (row?._asst) {
-        const a = row._asst as AssistantLeave;
-        undoToast(`${a.leaveType || "請假"}已取消`, `${a.assistantName}（助理） ${a.startDatetime} ~ ${a.endDatetime}`, async () => { await apiRequest("POST", "/api/assistant-leaves/restore", { leave: a }); invalidateLeaves(); });
-        setDeleteDialogOpen(false); setDeletingLeave(null);
-        return;
-      }
-      if (row) undoToast(`${row.leaveType || "請假"}已取消`, `${row.surveyorName} ${row.startDatetime} ~ ${row.endDatetime}`, () => restoreLeave(row));
-      else toast({ title: "請假已取消" });
+      const first = targets[0];
+      undoToast(
+        `${first.leaveType || "請假"}已取消${targets.length > 1 ? `（${targets.length} 人）` : ""}`,
+        `${targets.map((t) => t.surveyorName).join("、")} ${first.startDatetime} ~ ${first.endDatetime}`,
+        async () => { for (const u of undos) await u(); invalidateLeaves(); },
+      );
       setDeleteDialogOpen(false);
       setDeletingLeave(null);
     },
     onError: (error: Error) => {
+      invalidateLeaves();
       toast({ title: "取消失敗", description: error.message, variant: "destructive" });
     },
   });
@@ -175,12 +186,13 @@ export default function LeavesPage() {
 
   const handleDelete = (leave: EditableLeave) => {
     setDeletingLeave(leave);
+    setWithCompanions(false);
     setDeleteDialogOpen(true);
   };
 
   const handleConfirmDelete = () => {
     if (deletingLeave) {
-      deleteMutation.mutate(deletingLeave.id);
+      deleteMutation.mutate(withCompanions ? [deletingLeave, ...companionsOf(deletingLeave)] : [deletingLeave]);
     }
   };
 
@@ -306,6 +318,9 @@ export default function LeavesPage() {
                         <Badge variant="outline" className="text-xs font-normal">
                           {formatDateRange(leave.startDatetime, leave.endDatetime)}
                         </Badge>
+                        {companionsOf(leave).length > 0 && (
+                          <p className="text-xs text-muted-foreground mt-1" data-testid={`companions-${leave.id}`}>同行：{companionsOf(leave).map((l) => l.surveyorName).join("、")}</p>
+                        )}
                         {leave.reason && (
                           <p className="text-sm text-muted-foreground mt-1">{leave.reason}</p>
                         )}
@@ -372,6 +387,12 @@ export default function LeavesPage() {
                 <span className="block mt-1 text-xs">
                   {formatDateRange(deletingLeave.startDatetime, deletingLeave.endDatetime)}
                 </span>
+              )}
+              {deletingLeave && companionsOf(deletingLeave).length > 0 && (
+                <label className="mt-3 flex items-center gap-2 text-sm text-foreground cursor-pointer" data-testid="label-with-companions">
+                  <input type="checkbox" checked={withCompanions} onChange={(e) => setWithCompanions(e.target.checked)} className="h-4 w-4" data-testid="checkbox-with-companions" />
+                  一併取消同行的 {companionsOf(deletingLeave).length} 人（{companionsOf(deletingLeave).map((l) => l.surveyorName).join("、")}）
+                </label>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>

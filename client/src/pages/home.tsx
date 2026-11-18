@@ -26,10 +26,19 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.36.0";
-const RELEASE_DATE = "2026-11-16";
+const APP_VERSION = "v2.37.0";
+const RELEASE_DATE = "2026-11-18";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.37.0",
+    date: "2026-11-18",
+    items: [
+      "出差、上課可以一次登記多人：類型選出差或上課時，人員改成可多選（測量員、助理都可以），各自登記一筆、時間與說明相同；休假維持一次一人",
+      "多人登記時，有排定案件的測量員會一起列在衝突視窗，標出是誰的案件，可一鍵改到建議空檔或直接登記",
+      "請假管理：一起出差、上課的人顯示「同行：○○」，取消時可勾選一併取消同行的人（可一次復原）",
+    ],
+  },
   {
     version: "v2.36.0",
     date: "2026-11-16",

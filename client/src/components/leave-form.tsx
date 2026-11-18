@@ -72,6 +72,7 @@ interface ConflictCase {
   surveyDate: string;
   scheduledTime: string;
   landParcel: string;
+  who?: string;   // 多人登記時：是誰的案件
 }
 
 type LeaveSubmitData = {
@@ -82,6 +83,8 @@ type LeaveSubmitData = {
   endDatetime: string;
   reason?: string;
 };
+type Person = { kind: "surveyor" | "assistant"; id: string; name: string };
+type PendingLeave = LeaveSubmitData & { kind: "surveyor" | "assistant" };
 
 // 月曆等元件用 /api/leaves、請假管理頁用 /api/leaves?includePast=true，異動後全部更新
 export function invalidateLeaves() {
@@ -110,7 +113,12 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
   const { toast } = useToast();
   const [conflictOpen, setConflictOpen] = useState(false);
   const [conflicts, setConflicts] = useState<ConflictCase[]>([]);
-  const [pending, setPending] = useState<LeaveSubmitData | null>(null);
+  // 還沒登記成功、等使用者確認的請假（多人出差時可能有好幾位測量員都有排定案件）
+  const [pendingList, setPendingList] = useState<PendingLeave[]>([]);
+  const pending = pendingList[0] ?? null;
+  const [saving, setSaving] = useState(false);
+  // 出差、上課可以一次登記多人（測量員、助理都可以選）
+  const [people, setPeople] = useState<Person[]>([]);
   const { move, alert: rescheduleAlert } = useReschedule();
   const { info: dayInfo } = useWorkdays();
   const { data: allCases = [] } = useQuery<SurveyCase[]>({ queryKey: ["/api/cases"], enabled: open });
@@ -120,7 +128,7 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
   // 衝突案件的建議改期時段：把這次要登記的請假也算進去，並依序把已建議的時段當成占用，避免幾件排到同一格
   const suggestions = (() => {
     if (!pending || !conflicts.length) return new Map<string, { date: string; time: string }>();
-    const leaves = [...allLeaves.filter((l) => l.id !== editingLeave?.id), { surveyorName: pending.surveyorName, startDatetime: pending.startDatetime, endDatetime: pending.endDatetime } as SurveyorLeave];
+    const leaves = [...allLeaves.filter((l) => l.id !== editingLeave?.id), ...pendingList.map((p) => ({ surveyorName: p.surveyorName, startDatetime: p.startDatetime, endDatetime: p.endDatetime }) as SurveyorLeave)];
     const booked: SurveyCase[] = [...allCases];
     const out = new Map<string, { date: string; time: string }>();
     conflicts.forEach((cf) => {
@@ -179,6 +187,8 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
     } else {
       setFormData(blank());
     }
+    setPeople([]);
+    setPendingList([]);
   }, [open, editingLeave, defaultDate]);
 
   const { data: surveyorsList = [] } = useQuery<Surveyor[]>({
@@ -190,53 +200,77 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
     enabled: open,
   });
 
-  const saveMutation = useMutation({
-    mutationFn: async ({ data, force }: { data: LeaveSubmitData; force?: boolean }) => {
-      // 助理請假：不檢查案件衝突，存到助理請假
-      const isAsst = formData.kind === "assistant";
-      const root = isAsst ? "/api/assistant-leaves" : "/api/leaves";
-      const base = editingLeave ? `${root}/${editingLeave.id}` : root;
-      const body = isAsst
-        ? { assistantId: data.surveyorId, assistantName: data.surveyorName, leaveType: data.leaveType, startDatetime: data.startDatetime, endDatetime: data.endDatetime, reason: data.reason }
-        : data;
-      const response = await fetch(force && !isAsst ? `${base}?force=true` : base, {
-        method: editingLeave ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) {
-        const json = await response.json();
-        if (response.status === 409 && json.error === "CONFLICT") {
-          const err = new Error(json.message) as Error & { conflicts: ConflictCase[] };
-          err.conflicts = json.conflicts;
-          throw err;
-        }
-        throw new Error(json.error || (editingLeave ? "更新失敗" : "登記失敗"));
+  // 送出一筆：助理請假存到助理請假（不檢查案件衝突）；測量員請假有排定案件時回傳衝突清單
+  const send = async (d: PendingLeave, force: boolean): Promise<ConflictCase[] | null> => {
+    const isAsst = d.kind === "assistant";
+    const root = isAsst ? "/api/assistant-leaves" : "/api/leaves";
+    const base = editingLeave ? `${root}/${editingLeave.id}` : root;
+    const body = isAsst
+      ? { assistantId: d.surveyorId, assistantName: d.surveyorName, leaveType: d.leaveType, startDatetime: d.startDatetime, endDatetime: d.endDatetime, reason: d.reason }
+      : { surveyorId: d.surveyorId, surveyorName: d.surveyorName, leaveType: d.leaveType, startDatetime: d.startDatetime, endDatetime: d.endDatetime, reason: d.reason };
+    const response = await fetch(force && !isAsst ? `${base}?force=true` : base, {
+      method: editingLeave ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (response.ok) return null;
+    const json = await response.json().catch(() => ({}));
+    if (response.status === 409 && json.error === "CONFLICT") return (json.conflicts as ConflictCase[]).map((c) => ({ ...c, who: d.surveyorName }));
+    throw new Error(json.error || (editingLeave ? "更新失敗" : "登記失敗"));
+  };
+
+  // 依序送出；有排定案件的測量員先留著，一起在衝突視窗確認
+  const submit = async (list: PendingLeave[], force = false) => {
+    setSaving(true);
+    const remain: PendingLeave[] = [], found: ConflictCase[] = [];
+    let done = 0;
+    try {
+      for (const d of list) {
+        const cf = await send(d, force);
+        if (cf?.length) { remain.push(d); found.push(...cf); } else done++;
       }
-      return response.json();
-    },
-    onSuccess: (_d, { data }) => {
+    } catch (e) {
+      toast({ title: editingLeave ? "更新失敗" : "登記失敗", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      return;
+    } finally {
+      setSaving(false);
       invalidateLeaves();
-      toast({ title: editingLeave ? `${data.leaveType}已更新` : `${data.leaveType}已登記` });
-      setConflictOpen(false);
-      setConflicts([]);
-      setPending(null);
-      onDone();
-    },
-    onError: (error: Error & { conflicts?: ConflictCase[] }) => {
-      if (error.conflicts && error.conflicts.length > 0) {
-        setConflicts(error.conflicts);
-        setConflictOpen(true);
-      } else {
-        toast({ title: editingLeave ? "更新失敗" : "登記失敗", description: error.message, variant: "destructive" });
-      }
-    },
-  });
+    }
+    if (remain.length) {
+      setPendingList(remain);
+      setConflicts(found);
+      setConflictOpen(true);
+      if (done) toast({ title: `已登記 ${done} 人`, description: `${remain.map((d) => d.surveyorName).join("、")} 有排定案件，請確認` });
+      return;
+    }
+    const type = list[0]?.leaveType ?? "請假";
+    toast({ title: editingLeave ? `${type}已更新` : list.length > 1 ? `${type}已登記（${list.length} 人）` : `${type}已登記` });
+    setConflictOpen(false);
+    setConflicts([]);
+    setPendingList([]);
+    onDone();
+  };
+  const saveMutation = { isPending: saving };
 
   const set = (patch: Partial<ReturnType<typeof blank>>) => setFormData((prev) => ({ ...prev, ...patch }));
+  // 出差、上課可多人；休假、編輯既有請假只能一人
+  const multi = !editingLeave && formData.leaveType !== "休假";
+  const pickType = (t: LeaveType) => {
+    if (t === "休假" && multi && people.length) {
+      const p = people[0];   // 改回休假：只留第一位
+      set({ leaveType: t, kind: p.kind, surveyorId: p.id, surveyorName: p.name });
+      setPeople([]);
+      return;
+    }
+    if (t !== "休假" && !multi && !editingLeave && formData.surveyorId) setPeople([{ kind: formData.kind, id: formData.surveyorId, name: formData.surveyorName }]);
+    set({ leaveType: t });
+  };
+  const toggle = (p: Person) => setPeople((list) => (list.some((x) => x.kind === p.kind && x.id === p.id) ? list.filter((x) => !(x.kind === p.kind && x.id === p.id)) : [...list, p]));
+  const picked = (kind: Person["kind"], id: string) => people.some((x) => x.kind === kind && x.id === id);
 
   const handleSubmit = () => {
-    if (!formData.surveyorId) {
+    const who: Person[] = multi ? people : formData.surveyorId ? [{ kind: formData.kind, id: formData.surveyorId, name: formData.surveyorName }] : [];
+    if (!who.length) {
       toast({ title: "請選擇請假的人", variant: "destructive" });
       return;
     }
@@ -250,17 +284,17 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
       toast({ title: "開始時間必須早於結束時間", variant: "destructive" });
       return;
     }
-    const data: LeaveSubmitData = {
-      surveyorId: formData.surveyorId,
-      surveyorName: formData.surveyorName,
+    const list: PendingLeave[] = who.map((p) => ({
+      kind: p.kind,
+      surveyorId: p.id,
+      surveyorName: p.name,
       leaveType: formData.leaveType,
       startDatetime,
       endDatetime,
       // 編輯時要能把原因清空，所以送空字串而不是省略欄位
       reason: editingLeave ? formData.reason : formData.reason || undefined,
-    };
-    setPending(data);
-    saveMutation.mutate({ data });
+    }));
+    submit(list);
   };
 
   const periodActive = (p: (typeof PERIODS)[number]) =>
@@ -279,7 +313,7 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
                 variant="outline"
                 className={cn(formData.leaveType === t && LEAVE_STYLES[t].active)}
                 aria-pressed={formData.leaveType === t}
-                onClick={() => set({ leaveType: t })}
+                onClick={() => pickType(t)}
                 data-testid={`button-leave-type-${t}`}
               >
                 {t}
@@ -288,6 +322,43 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
           </div>
         </div>
 
+        {multi ? (
+          <div className="space-y-2" data-testid="leave-people">
+            <div className="flex items-center justify-between">
+              <Label>{formData.leaveType}的人 *（可多選）</Label>
+              {people.length > 0 && (
+                <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setPeople([])}>清除（已選 {people.length} 人）</button>
+              )}
+            </div>
+            {([["surveyor", "測量員", surveyorsList.map((x) => ({ id: x.id, name: x.name, note: x.businessAttribute }))],
+               ["assistant", "助理", assistantsList.map((a) => ({ id: a.id, name: a.name, note: a.surveyorId ? `${surveyorsList.find((x) => x.id === a.surveyorId)?.name ?? ""}的助理` : "非固定" }))]] as const)
+              .filter(([, , list]) => list.length)
+              .map(([kind, label, list]) => (
+                <div key={kind}>
+                  <div className="text-xs text-muted-foreground mb-1">{label}</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {list.map((x) => {
+                      const on = picked(kind, x.id);
+                      return (
+                        <button
+                          key={x.id}
+                          type="button"
+                          onClick={() => toggle({ kind, id: x.id, name: x.name })}
+                          className={cn("rounded-full border px-3 py-1 text-sm transition-colors", on ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted")}
+                          title={x.note}
+                          aria-pressed={on}
+                          data-testid={`leave-person-${x.name}`}
+                        >
+                          {on && "✓ "}{x.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            <p className="text-xs text-muted-foreground">同一趟出差、上課的人一起勾選，會各自登記一筆，時間與說明相同。</p>
+          </div>
+        ) : (
         <div className="space-y-2">
           <Label>請假的人 *</Label>
           <Select
@@ -323,6 +394,7 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
           </Select>
           {formData.kind === "assistant" && <p className="text-xs text-muted-foreground">助理請假不影響排件，只在排件時提醒課長參考。</p>}
         </div>
+        )}
 
         <div className="space-y-2">
           <Label>開始 *</Label>
@@ -405,7 +477,7 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
       <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onCancel}>取消</Button>
         <Button type="button" onClick={handleSubmit} disabled={saveMutation.isPending} className="bg-red-600 hover:bg-red-700 text-white border-red-700" data-testid="button-submit-leave">
-          {saveMutation.isPending ? "處理中..." : editingLeave ? `儲存${formData.leaveType}` : `登記${formData.leaveType}`}
+          {saveMutation.isPending ? "處理中..." : editingLeave ? `儲存${formData.leaveType}` : multi && people.length > 1 ? `登記${formData.leaveType}（${people.length} 人）` : `登記${formData.leaveType}`}
         </Button>
       </div>
 
@@ -430,6 +502,7 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
                     return (
                       <div key={c.id} className="text-xs p-2 bg-muted rounded border flex items-center gap-2" data-testid={`conflict-${c.id}`}>
                         <div className="min-w-0 flex-1">
+                          {c.who && <span className="font-semibold mr-1">{c.who}：</span>}
                           <span className="font-medium">{caseLabel(c)}</span>
                           {" · "}{fmtDate(c.surveyDate)} {c.scheduledTime}
                           {" · "}{c.landParcel}
@@ -448,14 +521,14 @@ export function LeaveForm({ open, editingLeave, defaultDate, onDone, onCancel }:
                     <Sparkles className="h-3.5 w-3.5 mr-1 text-primary" />{moving ? "改期中…" : `全部改到建議時段（${suggestions.size} 件）`}
                   </Button>
                 )}
-                <p className="text-[11px] text-muted-foreground">建議時段：{pending?.surveyorName} 在請假結束後最近的空檔（避開其他請假與非工作日，上午優先）。</p>
+                <p className="text-[11px] text-muted-foreground">建議時段：{pendingList.map((p) => p.surveyorName).join("、")} 各自在請假結束後最近的空檔（避開其他請假與非工作日，上午優先）。</p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>返回修改</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => pending && saveMutation.mutate({ data: pending, force: true })}
+              onClick={() => pendingList.length && submit(pendingList, true)}
               className="bg-amber-600 hover:bg-amber-700 text-white"
               data-testid="button-confirm-force-leave"
             >
