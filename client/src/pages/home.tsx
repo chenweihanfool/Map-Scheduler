@@ -26,10 +26,17 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.37.0";
+const APP_VERSION = "v2.37.1";
 const RELEASE_DATE = "2026-11-18";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.37.1",
+    date: "2026-11-18",
+    items: [
+      "右上角紅色按鈕改名為「請假／出差」，手機版「＋」選單同步改名，比較容易找到",
+    ],
+  },
   {
     version: "v2.37.0",
     date: "2026-11-18",
@@ -664,7 +671,7 @@ export default function Home() {
               </Button>
               <Button onClick={openLeave} className="bg-red-600 hover:bg-red-700 text-white border-red-700 px-3 sm:px-4" data-testid="button-add-leave" title="登記休假／出差／上課（快捷鍵 L）">
                 <CalendarOff className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">請假</span>
+                <span className="hidden sm:inline">請假／出差</span>
                 <kbd className="hidden lg:inline ml-2 rounded border border-white/40 px-1 text-[10px] font-mono leading-4 opacity-80">L</kbd>
               </Button>
               <Link href="/reports">
@@ -883,7 +890,7 @@ export default function Home() {
           <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
             {([
               ["N", "新增案件"],
-              ["L", "登記請假（休假／出差／上課）"],
+              ["L", "請假／出差（休假、出差、上課）"],
               ["← / →", activeView === "board" ? "上一週／下一週" : "上一個月／下一個月"],
               ["T", "回到今天"],
               ["1 / 2 / 3 / 4", "月曆／排班表／地圖／列表"],
