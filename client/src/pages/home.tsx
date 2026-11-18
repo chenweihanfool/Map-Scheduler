@@ -26,10 +26,17 @@ import { isPostponePending, type SurveyCase, type Surveyor, type SystemSettings 
 import { useToast } from "@/hooks/use-toast";
 import { surveyorColorStyle } from "@/lib/surveyor-colors";
 
-const APP_VERSION = "v2.37.1";
+const APP_VERSION = "v2.37.2";
 const RELEASE_DATE = "2026-11-18";
 
 const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: "v2.37.2",
+    date: "2026-11-18",
+    items: [
+      "延期理由多一個選項「當日障礙物未清除（現已清除）」，與測量案件排程一致",
+    ],
+  },
   {
     version: "v2.37.1",
     date: "2026-11-18",
