@@ -232,7 +232,7 @@ export default function MobileHome() {
                 <div className="fixed inset-0 z-30" onClick={() => setFab(false)} />
                 <div className="absolute right-0 top-12 z-40 w-40 rounded-2xl bg-popover text-popover-foreground shadow-xl ring-1 ring-black/10 dark:ring-white/10 overflow-hidden" data-testid="m-add-menu">
                   <button type="button" onClick={() => { setFab(false); setForm({ open: true, kind: "case" }); }} className="w-full flex items-center gap-2.5 px-4 py-3 text-sm active:bg-muted"><ClipboardList className="h-4 w-4 text-primary" />新增案件</button>
-                  <button type="button" onClick={() => { setFab(false); setForm({ open: true, kind: "leave" }); }} className="w-full flex items-center gap-2.5 px-4 py-3 text-sm border-t border-border/60 active:bg-muted"><CalendarOff className="h-4 w-4 text-red-600" />請假</button>
+                  <button type="button" onClick={() => { setFab(false); setForm({ open: true, kind: "leave" }); }} className="w-full flex items-center gap-2.5 px-4 py-3 text-sm border-t border-border/60 active:bg-muted"><CalendarOff className="h-4 w-4 text-red-600" />請假／出差</button>
                 </div>
               </>
             )}
@@ -311,7 +311,7 @@ export default function MobileHome() {
             </div>
             <div className="rounded-3xl bg-card shadow-sm ring-1 ring-black/5 dark:ring-white/10 overflow-hidden">
               <MoreRow icon={<Plus className="h-5 w-5 text-primary" />} label="新增案件" onClick={() => setForm({ open: true, kind: "case" })} />
-              <MoreRow icon={<CalendarOff className="h-5 w-5 text-red-600" />} label="登記請假" onClick={() => setForm({ open: true, kind: "leave" })} />
+              <MoreRow icon={<CalendarOff className="h-5 w-5 text-red-600" />} label="請假／出差" onClick={() => setForm({ open: true, kind: "leave" })} />
               <MoreRow icon={<Monitor className="h-5 w-5 text-muted-foreground" />} label="切換到電腦版畫面" onClick={() => { try { localStorage.setItem("ms-view", "desktop"); } catch { /* */ } location.reload(); }} />
             </div>
           </div>
